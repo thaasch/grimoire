@@ -102,6 +102,31 @@ describe('engine.stop', () => {
     expect(ctx.sources[0].stopped).toEqual([1.5]);
     expect(ctx.sources[1].stopped).toEqual([]);
   });
+
+  it('stop during fade-in holds the current interpolated gain instead of jumping to the target volume', () => {
+    const { ctx, engine } = setup();
+    engine.setBuffer('s1', FAKE_BUFFER);
+    const id = engine.play(makeSound(), 0.6, 1.5)!;
+    // Simulate the ramp being mid-flight in a real browser.
+    ctx.gains[1].gain.value = 0.25;
+    engine.stop(id, 0.3);
+    const events = ctx.gains[1].gain.events;
+    const cancelIndex = events.findIndex((e) => e.type === 'cancel');
+    expect(cancelIndex).toBeGreaterThanOrEqual(0);
+    expect(events.slice(cancelIndex + 1)).toEqual([
+      { type: 'set', value: 0.25, time: 0 },
+      { type: 'ramp', value: 0, time: 0.3 },
+    ]);
+  });
+
+  it('stopAll skips instances that are already stopping', () => {
+    const { ctx, engine } = setup();
+    engine.setBuffer('s1', FAKE_BUFFER);
+    const id = engine.play(makeSound())!;
+    engine.stop(id, 0.3);
+    engine.stopAll();
+    expect(ctx.sources[0].stopped).toEqual([0.3]);
+  });
 });
 
 describe('engine volumes and queries', () => {
@@ -112,6 +137,17 @@ describe('engine volumes and queries', () => {
     engine.setInstanceVolume(id, 0.25);
     expect(ctx.gains[1].gain.events).toContainEqual({ type: 'set', value: 0.25, time: 0 });
     expect(get(engine.playing)[0].volume).toBe(0.25);
+  });
+
+  it('setInstanceVolume is a no-op on a stopping instance', () => {
+    const { ctx, engine } = setup();
+    engine.setBuffer('s1', FAKE_BUFFER);
+    const id = engine.play(makeSound())!;
+    engine.stop(id, 0.3);
+    const eventsBefore = ctx.gains[1].gain.events.length;
+    engine.setInstanceVolume(id, 0.9);
+    expect(ctx.gains[1].gain.events).toHaveLength(eventsBefore);
+    expect(get(engine.playing)[0].volume).toBe(0.8);
   });
 
   it('setMasterVolume before first playback applies when the context is created', () => {

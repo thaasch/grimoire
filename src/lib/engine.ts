@@ -94,7 +94,10 @@ export function createEngine(createContext: () => AudioContext = () => new Audio
 
   function removeInstance(id: string): void {
     const entry = nodes.get(id);
-    if (entry) entry.gain.disconnect();
+    if (entry) {
+      entry.gain.disconnect();
+      entry.source.disconnect();
+    }
     nodes.delete(id);
     playing.update((list) => list.filter((i) => i.id !== id));
   }
@@ -102,6 +105,8 @@ export function createEngine(createContext: () => AudioContext = () => new Audio
   function setInstanceVolume(id: string, volume: number): void {
     const entry = nodes.get(id);
     if (!entry || !ctx) return;
+    const instance = get(playing).find((i) => i.id === id);
+    if (instance?.stopping) return;
     entry.gain.gain.cancelScheduledValues(ctx.currentTime);
     entry.gain.gain.setValueAtTime(volume, ctx.currentTime);
     playing.update((list) => list.map((i) => (i.id === id ? { ...i, volume } : i)));
@@ -115,10 +120,10 @@ export function createEngine(createContext: () => AudioContext = () => new Audio
   function stop(id: string, fade = 0.3): void {
     const entry = nodes.get(id);
     if (!entry || !ctx) return;
-    const instance = get(playing).find((i) => i.id === id);
     const t = ctx.currentTime;
+    const current = entry.gain.gain.value; // current interpolated gain in real browsers
     entry.gain.gain.cancelScheduledValues(t);
-    entry.gain.gain.setValueAtTime(instance?.volume ?? 1, t);
+    entry.gain.gain.setValueAtTime(current, t);
     entry.gain.gain.linearRampToValueAtTime(0, t + fade);
     try {
       entry.source.stop(t + fade);
@@ -129,7 +134,9 @@ export function createEngine(createContext: () => AudioContext = () => new Audio
   }
 
   function stopAll(fade = 1.5): void {
-    for (const id of [...nodes.keys()]) stop(id, fade);
+    for (const instance of get(playing)) {
+      if (!instance.stopping) stop(instance.id, fade);
+    }
   }
 
   function stopLoops(fade = 1.5): void {
