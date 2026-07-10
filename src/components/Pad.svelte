@@ -48,7 +48,13 @@
 </script>
 
 {#if entity}
-  <div class="pad" class:playing={isPlaying} class:broken class:loop={isLoop}>
+  <div
+    class="pad"
+    class:playing={isPlaying}
+    class:broken
+    class:loop={isLoop}
+    style="--pad-accent: var(--accent-{entity.color ?? 'gold'}); --pad-accent-faint: var(--accent-{entity.color ?? 'gold'}-faint)"
+  >
     <button
       class="face"
       onclick={() => triggerPad(pad)}
@@ -123,15 +129,15 @@
     align-items: center;
     gap: 0.4rem;
     padding: 1.1rem 0.5rem 0.9rem;
-    background: var(--gold-faint);
-    border: 1px solid var(--gold-dim);
+    background: var(--pad-accent-faint, var(--gold-faint));
+    border: 1px solid color-mix(in srgb, var(--pad-accent, var(--gold)) 30%, transparent);
     border-radius: 6px;
     color: var(--text);
     transition: border-color 0.15s, box-shadow 0.3s, background 0.3s;
   }
 
   .face:hover {
-    border-color: var(--gold);
+    border-color: var(--pad-accent, var(--gold));
   }
 
   .playing .face {
@@ -193,7 +199,7 @@
   }
 
   .badge {
-    color: var(--gold);
+    color: var(--pad-accent, var(--gold));
     font-size: 0.7rem;
   }
 

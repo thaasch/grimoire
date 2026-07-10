@@ -297,7 +297,7 @@ export async function movePad(sceneId: string, from: number, to: number): Promis
 
 export async function updateSound(
   id: string,
-  patch: Partial<Pick<Sound, 'name' | 'emoji' | 'type' | 'defaultVolume'>>,
+  patch: Partial<Pick<Sound, 'name' | 'emoji' | 'type' | 'defaultVolume' | 'color'>>,
   debounce = false,
 ): Promise<void> {
   let updated: Sound | undefined;

@@ -9,7 +9,7 @@
     updateSet,
     updateSound,
   } from '../lib/stores';
-  import type { Sound, SoundType } from '../lib/types';
+  import { PAD_COLORS, type Sound, type SoundType } from '../lib/types';
 
   const EMOJIS = ['🎵', '🎲', '🔥', '⚡', '🗡', '🚪', '🐺', '🌧', '💀', '🎻', '🍺', '👣', '🐉'];
 
@@ -62,6 +62,17 @@
         <button class:active={entity.emoji === emoji} onclick={() => pickEmoji(emoji)}>
           {emoji}
         </button>
+      {/each}
+    </div>
+    <div class="colors" role="group" aria-label={$t('settings.title')}>
+      {#each PAD_COLORS as c (c)}
+        <button
+          class="swatch"
+          class:active={(entity.color ?? 'gold') === c}
+          style="--sw: var(--accent-{c})"
+          aria-label={$t(`color.${c}`)}
+          onclick={() => (set ? updateSet(set.id, { color: c }) : sound && updateSound(sound.id, { color: c }))}
+        ></button>
       {/each}
     </div>
     {#if sound}
@@ -178,6 +189,24 @@
   .emojis button.active {
     border-color: var(--gold);
     background: var(--gold-faint);
+  }
+
+  .colors {
+    display: flex;
+    gap: 0.35rem;
+  }
+
+  .swatch {
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 50%;
+    background: var(--sw);
+    border: 2px solid transparent;
+    padding: 0;
+  }
+
+  .swatch.active {
+    border-color: var(--text);
   }
 
   .members {

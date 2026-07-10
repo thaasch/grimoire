@@ -16,6 +16,7 @@
     triggerSound,
   } from '../lib/stores';
   import { toast } from '../lib/toasts';
+  import type { PadColor } from '../lib/types';
 
   let query = $state('');
   let fileInput: HTMLInputElement | undefined = $state();
@@ -26,6 +27,7 @@
     emoji: string;
     isSet: boolean;
     detail: string;
+    color?: PadColor;
   }
 
   const entries = $derived.by((): Entry[] => {
@@ -38,10 +40,11 @@
         emoji: s.emoji,
         isSet: false,
         detail: `${fmt(s.duration)} · ${s.type === 'loop' ? '∞' : '1×'}`,
+        color: s.color,
       }));
     const setEntries = $sets
       .filter((s) => s.name.toLowerCase().includes(q))
-      .map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, isSet: true, detail: `🎲 ${s.soundIds.length}` }));
+      .map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, isSet: true, detail: `🎲 ${s.soundIds.length}`, color: s.color }));
     return [...soundEntries, ...setEntries].sort((a, b) => a.name.localeCompare(b.name));
   });
 
@@ -108,6 +111,7 @@
             <button class="play" title={entry.name} aria-label={$t('a11y.preview')} onclick={() => triggerRef(entry.id)}>
               {entry.emoji}
             </button>
+            <span class="dot" style="background: var(--accent-{entry.color ?? 'gold'})"></span>
             <span class="name">{entry.name}</span>
             <span class="detail">{entry.detail}</span>
             <button class="ghost" title={$t('pad.editSound')} aria-label={$t('a11y.editSound')} onclick={() => editingSound.set(entry.id)}>⚙</button>
@@ -225,6 +229,13 @@
   .play {
     font-size: 1.2rem;
     padding: 0.1rem 0.3rem;
+  }
+
+  .dot {
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    flex-shrink: 0;
   }
 
   .name {

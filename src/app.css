@@ -21,6 +21,22 @@
   --overlay-strong: rgba(13, 10, 18, 0.85);
   --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.6);
   --shadow-modal: 0 12px 40px rgba(0, 0, 0, 0.7);
+  --accent-gold: #e8c87e;
+  --accent-gold-faint: rgba(232, 200, 126, 0.06);
+  --accent-violet: #b08ae8;
+  --accent-violet-faint: rgba(176, 138, 232, 0.08);
+  --accent-blue: #7ea6e8;
+  --accent-blue-faint: rgba(126, 166, 232, 0.08);
+  --accent-green: #8ee89a;
+  --accent-green-faint: rgba(142, 232, 154, 0.07);
+  --accent-teal: #7ee0d3;
+  --accent-teal-faint: rgba(126, 224, 211, 0.07);
+  --accent-rose: #e88aa6;
+  --accent-rose-faint: rgba(232, 138, 166, 0.08);
+  --accent-amber: #e8a45e;
+  --accent-amber-faint: rgba(232, 164, 94, 0.08);
+  --accent-slate: #9aa6b8;
+  --accent-slate-faint: rgba(154, 166, 184, 0.08);
   --font-display: Georgia, 'Times New Roman', serif;
   --font-ui: system-ui, -apple-system, sans-serif;
 }
