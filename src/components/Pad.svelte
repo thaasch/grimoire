@@ -2,14 +2,28 @@
   import { engine } from '../lib/engine';
   import { keyLabel, padKeyCode } from '../lib/hotkeys';
   import { lang, t } from '../lib/i18n';
-  import { brokenSounds, editMode, editingSound, removePad, sounds, triggerPad, updatePad } from '../lib/stores';
+  import {
+    brokenSounds,
+    editMode,
+    editingSound,
+    removePad,
+    sets,
+    sounds,
+    triggerPad,
+    updatePad,
+  } from '../lib/stores';
   import type { Pad } from '../lib/types';
 
   let { pad, sceneId }: { pad: Pad; sceneId: string } = $props();
 
   const { playing } = engine;
 
-  const sound = $derived($sounds.find((s) => s.id === pad.soundId));
+  const set = $derived($sets.find((s) => s.id === pad.soundId));
+  const sound = $derived(set ? undefined : $sounds.find((s) => s.id === pad.soundId));
+  const entity = $derived(set ?? sound);
+  const isLoop = $derived(!set && sound?.type === 'loop');
+  const isOneshot = $derived(set ? true : sound?.type === 'oneshot');
+
   const instances = $derived($playing.filter((i) => i.soundId === pad.soundId && !i.stopping));
   const isPlaying = $derived(instances.length > 0);
   const code = $derived(padKeyCode(pad.position));
@@ -18,7 +32,7 @@
   let progress = $state(0);
 
   $effect(() => {
-    if (!isPlaying || !sound || sound.type !== 'oneshot') {
+    if (!isPlaying || !isOneshot) {
       progress = 0;
       return;
     }
@@ -33,22 +47,23 @@
   });
 </script>
 
-{#if sound}
-  <div class="pad" class:playing={isPlaying} class:broken class:loop={sound.type === 'loop'}>
+{#if entity}
+  <div class="pad" class:playing={isPlaying} class:broken class:loop={isLoop}>
     <button
       class="face"
       onclick={() => triggerPad(pad)}
       disabled={broken}
-      title={broken ? $t('pad.broken') : sound.name}
+      title={broken ? $t('pad.broken') : entity.name}
     >
-      <span class="emoji">{sound.emoji}</span>
-      <span class="name">{sound.name}</span>
+      <span class="emoji">{entity.emoji}</span>
+      <span class="name">{entity.name}</span>
       <span class="meta">
         {#if code}<kbd>{keyLabel(code, $lang)}</kbd>{/if}
-        {#if sound.type === 'loop'}<span class="badge">∞</span>{/if}
+        {#if set}<span class="badge">🎲 {set.soundIds.length}</span>{/if}
+        {#if isLoop}<span class="badge">∞</span>{/if}
         {#if broken}<span class="badge">⚠</span>{/if}
       </span>
-      {#if sound.type === 'oneshot' && isPlaying}
+      {#if isOneshot && isPlaying}
         <span class="ring" style="--p: {progress}"></span>
       {/if}
     </button>
@@ -60,10 +75,11 @@
           max="1"
           step="0.01"
           title={$t('pad.volume')}
-          value={pad.volume ?? sound.defaultVolume}
-          oninput={(e) => updatePad(sceneId, pad.soundId, { volume: Number(e.currentTarget.value) })}
+          aria-label={$t('pad.volume')}
+          value={pad.volume ?? entity.defaultVolume}
+          oninput={(e) => updatePad(sceneId, pad.soundId, { volume: Number(e.currentTarget.value) }, true)}
         />
-        {#if sound.type === 'loop'}
+        {#if isLoop}
           <label class="auto" title={$t('pad.autoplay')}>
             <input
               type="checkbox"
@@ -72,8 +88,18 @@
             />▶
           </label>
         {/if}
-        <button class="gear" title={$t('pad.editSound')} onclick={() => editingSound.set(pad.soundId)}>⚙</button>
-        <button class="rm" title={$t('pad.remove')} onclick={() => removePad(sceneId, pad.soundId)}>✕</button>
+        <button
+          class="gear"
+          title={$t('pad.editSound')}
+          aria-label={$t('a11y.editSound')}
+          onclick={() => editingSound.set(pad.soundId)}
+        >⚙</button>
+        <button
+          class="rm"
+          title={$t('pad.remove')}
+          aria-label={$t('a11y.remove')}
+          onclick={() => removePad(sceneId, pad.soundId)}
+        >✕</button>
       </div>
     {/if}
   </div>
@@ -82,7 +108,7 @@
     <div class="face orphan-face">
       <span class="emoji">⚠</span>
       <span class="name">{$t('pad.broken')}</span>
-      <button class="rm" title={$t('pad.remove')} onclick={() => removePad(sceneId, pad.soundId)}>✕</button>
+      <button class="rm" title={$t('pad.remove')} aria-label={$t('a11y.remove')} onclick={() => removePad(sceneId, pad.soundId)}>✕</button>
     </div>
   </div>
 {/if}

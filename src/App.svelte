@@ -123,6 +123,7 @@
     if (e.dataTransfer?.types.includes('Files')) dragDepth = Math.max(0, dragDepth - 1);
   }}
   ondragover={(e) => e.preventDefault()}
+  ondropcapture={() => (dragDepth = 0)}
   ondrop={handleDrop}
   onkeydown={onKeydown}
   onpointerdown={onPointerDown}
