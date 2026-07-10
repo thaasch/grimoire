@@ -3,7 +3,7 @@ import { strToU8, zipSync } from 'fflate';
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as db from '../src/lib/db';
 import { exportAll, importZip } from '../src/lib/exchange';
-import type { Scene, Sound } from '../src/lib/types';
+import type { Scene, Sound, VariationSet } from '../src/lib/types';
 
 const sound: Sound = {
   id: 'a',
@@ -43,7 +43,7 @@ describe('exchange', () => {
     await db._resetForTests();
 
     const result = await importZip(zip);
-    expect(result).toEqual({ sounds: 1, scenes: 1 });
+    expect(result).toEqual({ sounds: 1, scenes: 1, sets: 0 });
     expect(await db.getAllSounds()).toEqual([sound]);
     expect(new Uint8Array((await db.getBlob('a'))!)).toEqual(new Uint8Array([9, 9]));
     expect(await db.getAllScenes()).toEqual([scene]);
@@ -86,5 +86,36 @@ describe('exchange', () => {
     expect(all).toEqual([sound, other]);
     expect(new Uint8Array((await db.getBlob('a'))!)).toEqual(new Uint8Array([9, 9]));
     expect(new Uint8Array((await db.getBlob('b'))!)).toEqual(new Uint8Array([5]));
+  });
+
+  it('round-trips variation sets', async () => {
+    const set: VariationSet = {
+      id: 'set1',
+      name: 'Schwerter',
+      emoji: '🎲',
+      soundIds: ['a'],
+      defaultVolume: 0.7,
+    };
+    await db.saveSound(sound, new Uint8Array([9]).buffer);
+    await db.saveSet(set);
+    const zip = await exportAll();
+    await db._resetForTests();
+    const result = await importZip(zip);
+    expect(result.sets).toBe(1);
+    expect(await db.getAllSets()).toEqual([set]);
+  });
+
+  it('imports v1 archives without a sets field', async () => {
+    await db.saveSound(sound, new Uint8Array([9]).buffer);
+    const zip = await exportAll();
+    // strip the sets field to simulate a v1 archive
+    const { unzipSync, zipSync: rezip, strFromU8: fromU8, strToU8: toU8 } = await import('fflate');
+    const files = unzipSync(zip);
+    const manifest = JSON.parse(fromU8(files['manifest.json']));
+    delete manifest.sets;
+    files['manifest.json'] = toU8(JSON.stringify(manifest));
+    await db._resetForTests();
+    const result = await importZip(rezip(files, { level: 0 }));
+    expect(result).toEqual({ sounds: 1, scenes: 0, sets: 0 });
   });
 });
