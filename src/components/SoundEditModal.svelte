@@ -9,7 +9,7 @@
 </script>
 
 {#if sound}
-  <button class="backdrop" aria-label="close" onclick={() => editingSound.set(null)}></button>
+  <button class="backdrop" aria-label={$t('a11y.close')} onclick={() => editingSound.set(null)}></button>
   <div class="modal" role="dialog">
     <h3>{sound.emoji} {sound.name}</h3>
     <label>

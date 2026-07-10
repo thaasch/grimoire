@@ -114,7 +114,7 @@
 
 {#if menuFor}
   {@const scene = ordered.find((s) => s.id === menuFor)}
-  <button class="backdrop" onclick={() => (menuFor = null)} aria-label="close"></button>
+  <button class="backdrop" onclick={() => (menuFor = null)} aria-label={$t('a11y.close')}></button>
   {#if scene}
     <div
       class="menu"
