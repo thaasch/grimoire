@@ -1,17 +1,38 @@
-<main>
-  <h1>⚔ GRIMOIRE</h1>
-</main>
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import TopBar from './components/TopBar.svelte';
+  import { init } from './lib/stores';
+
+  let ready = $state(false);
+
+  onMount(async () => {
+    await init();
+    ready = true;
+  });
+</script>
+
+{#if ready}
+  <div class="app">
+    <TopBar />
+    <main></main>
+    <footer></footer>
+  </div>
+{/if}
 
 <style>
-  main {
+  .app {
     display: grid;
-    place-items: center;
+    grid-template-rows: auto 1fr auto;
     height: 100vh;
   }
 
-  h1 {
-    color: var(--gold);
-    letter-spacing: 0.3em;
-    font-weight: normal;
+  main {
+    overflow-y: auto;
+  }
+
+  footer {
+    min-height: 3.2rem;
+    background: var(--panel);
+    border-top: 1px solid var(--panel-border);
   }
 </style>
