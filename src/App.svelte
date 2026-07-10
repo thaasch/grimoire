@@ -10,6 +10,7 @@
   import TopBar from './components/TopBar.svelte';
   import { engine } from './lib/engine';
   import { isTypingTarget, padIndexForCode } from './lib/hotkeys';
+  import { t } from './lib/i18n';
   import {
     activateScene,
     activeScene,
@@ -25,6 +26,8 @@
 
   let ready = $state(false);
   let dragDepth = $state(0);
+
+  const supported = typeof AudioContext !== 'undefined';
 
   onMount(async () => {
     await init();
@@ -108,7 +111,9 @@
   onpointerdown={onPointerDown}
 />
 
-{#if ready}
+{#if !supported}
+  <div class="unsupported">{$t('app.unsupported')}</div>
+{:else if ready}
   <div class="app">
     <TopBar />
     <main><Stage /></main>
@@ -131,5 +136,14 @@
 
   main {
     overflow-y: auto;
+  }
+
+  .unsupported {
+    display: grid;
+    place-items: center;
+    height: 100vh;
+    color: var(--muted);
+    padding: 2rem;
+    text-align: center;
   }
 </style>
