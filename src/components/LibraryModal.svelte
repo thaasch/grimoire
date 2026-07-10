@@ -1,6 +1,7 @@
 <script lang="ts">
   import { exportAll, importZip } from '../lib/exchange';
   import { engine } from '../lib/engine';
+  import { trapFocus } from '../lib/focus';
   import { t } from '../lib/i18n';
   import {
     activeScene,
@@ -93,14 +94,14 @@
 
 {#if $libraryOpen}
   <button class="backdrop" aria-label={$t('a11y.close')} onclick={() => libraryOpen.set(false)}></button>
-  <div class="modal" role="dialog">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="library-title" use:trapFocus>
     <header>
-      <h3>{$t('library.title')}</h3>
-      <input placeholder={$t('search.placeholder')} bind:value={query} />
+      <h3 id="library-title">{$t('library.title')}</h3>
+      <input aria-label={$t('search.placeholder')} placeholder={$t('search.placeholder')} bind:value={query} />
       <button class="ghost" onclick={doExport}>{$t('library.export')}</button>
       <button class="ghost" onclick={() => fileInput?.click()}>{$t('library.import')}</button>
       <input type="file" accept=".zip" bind:this={fileInput} onchange={doImport} hidden />
-      <button class="x" onclick={() => libraryOpen.set(false)}>✕</button>
+      <button class="x" aria-label={$t('a11y.close')} onclick={() => libraryOpen.set(false)}>✕</button>
     </header>
     {#if $sounds.length === 0 && $sets.length === 0}
       <p class="empty">{$t('library.empty')}</p>

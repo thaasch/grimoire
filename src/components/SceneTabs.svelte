@@ -16,6 +16,7 @@
   let menuFor: string | null = $state(null);
   let menuPos = $state({ x: 0, y: 0 });
   let menuEl: HTMLDivElement | undefined = $state();
+  let menuTrigger: HTMLElement | null = $state(null);
   let renamingId: string | null = $state(null);
   let renameValue = $state('');
   let dragIndex: number | null = $state(null);
@@ -32,8 +33,15 @@
     menuPos = { x, y };
   }
 
+  function closeMenu() {
+    menuFor = null;
+    menuTrigger?.focus();
+    menuTrigger = null;
+  }
+
   function openMenu(e: MouseEvent, id: string) {
     e.preventDefault();
+    menuTrigger = e.currentTarget as HTMLElement;
     showMenu(id, e.clientX, e.clientY);
   }
 
@@ -42,6 +50,7 @@
       e.preventDefault();
       e.stopPropagation();
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      menuTrigger = e.currentTarget as HTMLElement;
       showMenu(id, rect.left, rect.bottom);
     }
   }
@@ -56,6 +65,7 @@
     renamingId = id;
     renameValue = current;
     menuFor = null;
+    menuTrigger = null;
   }
 
   async function commitRename() {
@@ -66,7 +76,7 @@
   }
 
   async function remove(id: string, name: string) {
-    menuFor = null;
+    closeMenu();
     if (confirm($t('scenes.deleteConfirm', { name }))) await deleteScene(id);
   }
 
@@ -112,12 +122,12 @@
       >{scene.emoji} {scene.name}</button>
     {/if}
   {/each}
-  <button class="tab add" onclick={addScene} title={$t('scenes.new')}>+</button>
+  <button class="tab add" onclick={addScene} title={$t('scenes.new')} aria-label={$t('a11y.newScene')}>+</button>
 </nav>
 
 {#if menuFor}
   {@const scene = ordered.find((s) => s.id === menuFor)}
-  <button class="backdrop" onclick={() => (menuFor = null)} aria-label={$t('a11y.close')}></button>
+  <button class="backdrop" onclick={closeMenu} aria-label={$t('a11y.close')}></button>
   {#if scene}
     <div
       class="menu"
@@ -128,8 +138,23 @@
       onkeydown={(e) => {
         if (e.key === 'Escape') {
           e.stopPropagation();
-          menuFor = null;
+          closeMenu();
+          return;
         }
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+        e.preventDefault();
+        const items = [...(menuEl?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+        if (items.length === 0) return;
+        const current = items.indexOf(document.activeElement as HTMLElement);
+        const next =
+          e.key === 'ArrowDown'
+            ? items[(current + 1) % items.length]
+            : e.key === 'ArrowUp'
+              ? items[(current - 1 + items.length) % items.length]
+              : e.key === 'Home'
+                ? items[0]
+                : items[items.length - 1];
+        next.focus();
       }}
     >
       <div class="emojis">
@@ -139,7 +164,7 @@
             aria-label={emoji}
             onclick={() => {
               updateScene(scene.id, { emoji });
-              menuFor = null;
+              closeMenu();
             }}
           >{emoji}</button>
         {/each}
@@ -152,7 +177,7 @@
         role="menuitem"
         onclick={() => {
           duplicateScene(scene.id);
-          menuFor = null;
+          closeMenu();
         }}
       >
         {$t('scenes.duplicate')}

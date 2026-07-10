@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { trapFocus } from '../lib/focus';
   import { t } from '../lib/i18n';
   import {
     editingSound,
@@ -51,8 +52,8 @@
 
 {#if entity}
   <button class="backdrop" aria-label={$t('a11y.close')} onclick={() => editingSound.set(null)}></button>
-  <div class="modal" role="dialog">
-    <h3>{entity.emoji} {entity.name} {#if set}<span class="setbadge">🎲 {set.soundIds.length}</span>{/if}</h3>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="soundedit-title" use:trapFocus>
+    <h3 id="soundedit-title">{entity.emoji} {entity.name} {#if set}<span class="setbadge">🎲 {set.soundIds.length}</span>{/if}</h3>
     <label>
       {$t('sound.name')}
       <input value={entity.name} onchange={(e) => rename(e.currentTarget.value)} />
@@ -64,7 +65,7 @@
         </button>
       {/each}
     </div>
-    <div class="colors" role="group" aria-label={$t('settings.title')}>
+    <div class="colors" role="group" aria-label={$t('a11y.colors')}>
       {#each PAD_COLORS as c (c)}
         <button
           class="swatch"
