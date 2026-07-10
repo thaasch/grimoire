@@ -2,7 +2,7 @@
   import { engine } from '../lib/engine';
   import { keyLabel, padKeyCode } from '../lib/hotkeys';
   import { lang, t } from '../lib/i18n';
-  import { brokenSounds, sounds, triggerPad } from '../lib/stores';
+  import { brokenSounds, editMode, editingSound, removePad, sounds, triggerPad, updatePad } from '../lib/stores';
   import type { Pad } from '../lib/types';
 
   let { pad, sceneId }: { pad: Pad; sceneId: string } = $props();
@@ -52,6 +52,30 @@
         <span class="ring" style="--p: {progress}"></span>
       {/if}
     </button>
+    {#if $editMode}
+      <div class="editbar">
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          title={$t('pad.volume')}
+          value={pad.volume ?? sound.defaultVolume}
+          oninput={(e) => updatePad(sceneId, pad.soundId, { volume: Number(e.currentTarget.value) })}
+        />
+        {#if sound.type === 'loop'}
+          <label class="auto" title={$t('pad.autoplay')}>
+            <input
+              type="checkbox"
+              checked={pad.autoplay ?? false}
+              onchange={(e) => updatePad(sceneId, pad.soundId, { autoplay: e.currentTarget.checked })}
+            />▶
+          </label>
+        {/if}
+        <button class="gear" title={$t('pad.editSound')} onclick={() => editingSound.set(pad.soundId)}>⚙</button>
+        <button class="rm" title={$t('pad.remove')} onclick={() => removePad(sceneId, pad.soundId)}>✕</button>
+      </div>
+    {/if}
   </div>
 {/if}
 
@@ -135,5 +159,40 @@
     height: 14px;
     border-radius: 50%;
     background: conic-gradient(var(--ember) calc(var(--p) * 360deg), var(--ring-track) 0);
+  }
+
+  .editbar {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+    margin-top: 0.3rem;
+    font-family: var(--font-ui);
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .editbar input[type='range'] {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .auto {
+    display: flex;
+    align-items: center;
+    gap: 0.15rem;
+  }
+
+  .rm {
+    color: var(--danger);
+    padding: 0 0.2rem;
+  }
+
+  .gear {
+    color: var(--muted);
+    padding: 0 0.2rem;
+  }
+
+  .gear:hover {
+    color: var(--gold);
   }
 </style>

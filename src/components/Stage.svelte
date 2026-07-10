@@ -1,7 +1,18 @@
 <script lang="ts">
   import { t } from '../lib/i18n';
-  import { activeScene, addPad, searchQuery, sounds, triggerSound } from '../lib/stores';
+  import { activeScene, addPad, editMode, movePad, searchQuery, sounds, triggerSound } from '../lib/stores';
   import PadView from './Pad.svelte';
+
+  let dragIndex: number | null = $state(null);
+
+  function onPadDrop(e: DragEvent, to: number) {
+    e.preventDefault();
+    e.stopPropagation();
+    if ($activeScene && dragIndex !== null && dragIndex !== to) {
+      movePad($activeScene.id, dragIndex, to);
+    }
+    dragIndex = null;
+  }
 
   const query = $derived($searchQuery.trim().toLowerCase());
 
@@ -29,8 +40,22 @@
     <div class="empty">📜 {$t('stage.dropHint')}</div>
   {:else if $activeScene}
     <div class="grid">
-      {#each pads as pad (pad.soundId)}
-        <PadView {pad} sceneId={$activeScene.id} />
+      {#each pads as pad, i (pad.soundId)}
+        <div
+          class="cell"
+          role="presentation"
+          draggable={$editMode && !query}
+          ondragstart={(e) => {
+            if ($editMode && !query) dragIndex = i;
+            else e.preventDefault();
+          }}
+          ondragover={(e) => {
+            if (dragIndex !== null) e.preventDefault();
+          }}
+          ondrop={(e) => onPadDrop(e, i)}
+        >
+          <PadView {pad} sceneId={$activeScene.id} />
+        </div>
       {/each}
     </div>
     {#if libraryMatches.length > 0}

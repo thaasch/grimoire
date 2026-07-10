@@ -3,6 +3,7 @@
   import { get } from 'svelte/store';
   import DropOverlay from './components/DropOverlay.svelte';
   import MixerDock from './components/MixerDock.svelte';
+  import SoundEditModal from './components/SoundEditModal.svelte';
   import Stage from './components/Stage.svelte';
   import Toasts from './components/Toasts.svelte';
   import TopBar from './components/TopBar.svelte';
@@ -11,6 +12,7 @@
   import {
     activateScene,
     activeScene,
+    editingSound,
     importFiles,
     init,
     libraryOpen,
@@ -48,7 +50,9 @@
     if (isTypingTarget(e.target)) return;
 
     if (e.key === 'Escape') {
-      if (get(libraryOpen)) {
+      if (get(editingSound)) {
+        editingSound.set(null);
+      } else if (get(libraryOpen)) {
         libraryOpen.set(false);
       } else {
         engine.stopAll(1.5);
@@ -92,9 +96,11 @@
 <svelte:window
   ondragenter={(e) => {
     e.preventDefault();
-    dragDepth++;
+    if (e.dataTransfer?.types.includes('Files')) dragDepth++;
   }}
-  ondragleave={() => (dragDepth = Math.max(0, dragDepth - 1))}
+  ondragleave={(e) => {
+    if (e.dataTransfer?.types.includes('Files')) dragDepth = Math.max(0, dragDepth - 1);
+  }}
   ondragover={(e) => e.preventDefault()}
   ondrop={handleDrop}
   onkeydown={onKeydown}
@@ -110,6 +116,7 @@
   {#if dragDepth > 0}
     <DropOverlay />
   {/if}
+  <SoundEditModal />
   <Toasts />
 {/if}
 
