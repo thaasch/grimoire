@@ -21,4 +21,14 @@ describe('i18n', () => {
     expect(detectLang('en-US')).toBe('en');
     expect(detectLang('fr')).toBe('en');
   });
+
+  it('has the v1.1 keys in both languages', () => {
+    lang.set('de');
+    expect(get(t)('scenes.duplicate')).toBe('Duplizieren');
+    expect(get(t)('scenes.copyName', { name: 'Taverne' })).toBe('Taverne (Kopie)');
+    expect(get(t)('toast.loopInSet')).toContain('Loops');
+    lang.set('en');
+    expect(get(t)('scenes.copyName', { name: 'Tavern' })).toBe('Tavern (copy)');
+    expect(get(t)('settings.fadeCrossfade')).toBe('Scene crossfade');
+  });
 });

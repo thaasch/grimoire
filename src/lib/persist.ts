@@ -24,8 +24,7 @@ export async function guard<T>(work: Promise<T> | (() => Promise<T>)): Promise<T
     return await (typeof work === 'function' ? work() : work);
   } catch (error) {
     const quota = error instanceof DOMException && error.name === 'QuotaExceededError';
-    // Task 3 adds the 'toast.saveFailed' key and flips the else-branch to it.
-    toast(quota ? 'toast.quota' : 'toast.quota', {}, 'error');
+    toast(quota ? 'toast.quota' : 'toast.saveFailed', {}, 'error');
     return undefined;
   }
 }

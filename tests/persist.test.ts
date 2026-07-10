@@ -66,4 +66,9 @@ describe('guard', () => {
   it('accepts a thunk', async () => {
     expect(await guard(async () => 'ok')).toBe('ok');
   });
+
+  it('uses the saveFailed key for non-quota errors', async () => {
+    await guard(Promise.reject(new Error('boom')));
+    expect(get(toasts)[0].key).toBe('toast.saveFailed');
+  });
 });

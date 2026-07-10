@@ -57,7 +57,12 @@ describe('db', () => {
 
   it('settings: undefined on first run, then round-trips', async () => {
     expect(await db.loadSettings()).toBeUndefined();
-    const settings = { language: 'de' as const, masterVolume: 0.5, activeSceneId: 'sc1' };
+    const settings = {
+      language: 'de' as const,
+      masterVolume: 0.5,
+      activeSceneId: 'sc1',
+      fades: { stop: 0.3, stopAll: 1.5, crossfade: 1.5 },
+    };
     await db.saveSettings(settings);
     expect(await db.loadSettings()).toEqual(settings);
   });

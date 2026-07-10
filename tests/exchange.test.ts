@@ -32,7 +32,12 @@ describe('exchange', () => {
   it('round-trips sounds, bytes and scenes through a zip', async () => {
     await db.saveSound(sound, new Uint8Array([9, 9]).buffer);
     await db.saveScene(scene);
-    await db.saveSettings({ language: 'de', masterVolume: 0.5, activeSceneId: 'sc1' });
+    await db.saveSettings({
+      language: 'de',
+      masterVolume: 0.5,
+      activeSceneId: 'sc1',
+      fades: { stop: 0.3, stopAll: 1.5, crossfade: 1.5 },
+    });
 
     const zip = await exportAll();
     await db._resetForTests();
