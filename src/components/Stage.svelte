@@ -6,9 +6,10 @@
   let dragIndex: number | null = $state(null);
 
   function onPadDrop(e: DragEvent, to: number) {
+    if (dragIndex === null) return;
     e.preventDefault();
     e.stopPropagation();
-    if ($activeScene && dragIndex !== null && dragIndex !== to) {
+    if ($activeScene && dragIndex !== to) {
       movePad($activeScene.id, dragIndex, to);
     }
     dragIndex = null;
@@ -53,6 +54,7 @@
             if (dragIndex !== null) e.preventDefault();
           }}
           ondrop={(e) => onPadDrop(e, i)}
+          ondragend={() => (dragIndex = null)}
         >
           <PadView {pad} sceneId={$activeScene.id} />
         </div>

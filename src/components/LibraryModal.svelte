@@ -1,5 +1,6 @@
 <script lang="ts">
   import { exportAll, importZip } from '../lib/exchange';
+  import { engine } from '../lib/engine';
   import { t } from '../lib/i18n';
   import {
     activeScene,
@@ -25,8 +26,9 @@
   const inScene = $derived(new Set($activeScene?.pads.map((p) => p.soundId) ?? []));
 
   function fmt(seconds: number): string {
-    const m = Math.floor(seconds / 60);
-    const s = Math.round(seconds % 60);
+    const total = Math.round(seconds);
+    const m = Math.floor(total / 60);
+    const s = total % 60;
     return `${m}:${String(s).padStart(2, '0')}`;
   }
 
@@ -46,12 +48,15 @@
     if (!file) return;
     try {
       const result = await importZip(new Uint8Array(await file.arrayBuffer()));
-      await init();
       toast('toast.imported', { sounds: result.sounds, scenes: result.scenes });
-    } catch {
-      toast('toast.unsupported', { name: file.name }, 'error');
+    } catch (error) {
+      const quota = error instanceof DOMException && error.name === 'QuotaExceededError';
+      toast(quota ? 'toast.quota' : 'toast.unsupported', quota ? {} : { name: file.name }, 'error');
+    } finally {
+      engine.clearBuffers(); // imported bytes may replace cached ids
+      await init(); // sync stores with whatever actually landed in the DB
+      input.value = '';
     }
-    input.value = '';
   }
 
   async function del(id: string, name: string) {

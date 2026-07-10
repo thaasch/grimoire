@@ -51,16 +51,21 @@
   }
 
   function onKeydown(e: KeyboardEvent) {
-    if (isTypingTarget(e.target)) return;
-
-    if (e.key === 'Escape') {
+    if (e.key === 'Escape' && (get(editingSound) || get(libraryOpen))) {
       if (get(editingSound)) {
         editingSound.set(null);
-      } else if (get(libraryOpen)) {
-        libraryOpen.set(false);
       } else {
-        engine.stopAll(1.5);
+        libraryOpen.set(false);
       }
+      return;
+    }
+
+    if (isTypingTarget(e.target)) return;
+
+    if (!get(engine.unlocked)) engine.unlock();
+
+    if (e.key === 'Escape') {
+      engine.stopAll(1.5);
       return;
     }
 
@@ -81,14 +86,18 @@
       return;
     }
 
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       const current = ordered.findIndex((s) => s.id === get(settings).activeSceneId);
       const next = ordered[current + (e.key === 'ArrowRight' ? 1 : -1)];
-      if (next) activateScene(next.id);
+      if (next) {
+        e.preventDefault();
+        activateScene(next.id);
+      }
       return;
     }
 
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
     const index = padIndexForCode(e.code);
     if (index === null) return;
     const scene = get(activeScene);

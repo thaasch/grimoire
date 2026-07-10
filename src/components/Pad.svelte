@@ -77,6 +77,14 @@
       </div>
     {/if}
   </div>
+{:else}
+  <div class="pad orphan">
+    <div class="face orphan-face">
+      <span class="emoji">⚠</span>
+      <span class="name">{$t('pad.broken')}</span>
+      <button class="rm" title={$t('pad.remove')} onclick={() => removePad(sceneId, pad.soundId)}>✕</button>
+    </div>
+  </div>
 {/if}
 
 <style>
@@ -119,6 +127,18 @@
   .broken .face {
     opacity: 0.45;
     cursor: not-allowed;
+  }
+
+  .orphan-face {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 1.1rem 0.5rem 0.9rem;
+    border: 1px dashed var(--violet-dim);
+    border-radius: 6px;
+    color: var(--muted);
   }
 
   .emoji {

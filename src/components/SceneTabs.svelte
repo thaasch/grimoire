@@ -74,8 +74,9 @@
   }
 
   function onDrop(e: DragEvent, to: number) {
+    if (dragIndex === null) return;
     e.preventDefault();
-    if (dragIndex !== null && dragIndex !== to) moveScene(dragIndex, to);
+    if (dragIndex !== to) moveScene(dragIndex, to);
     dragIndex = null;
   }
 </script>
@@ -102,6 +103,7 @@
         ondragstart={() => (dragIndex = i)}
         ondragover={(e) => e.preventDefault()}
         ondrop={(e) => onDrop(e, i)}
+        ondragend={() => (dragIndex = null)}
         onclick={() => activateScene(scene.id)}
         ondblclick={() => startRename(scene.id, scene.name)}
         oncontextmenu={(e) => openMenu(e, scene.id)}

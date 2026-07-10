@@ -57,6 +57,14 @@ export function createEngine(createContext: () => AudioContext = () => new Audio
     buffers.set(soundId, buffer);
   }
 
+  function removeBuffer(soundId: string): void {
+    buffers.delete(soundId);
+  }
+
+  function clearBuffers(): void {
+    buffers.clear();
+  }
+
   function play(sound: Sound, volume = sound.defaultVolume, fadeIn = 0): string | null {
     const c = ensure();
     const buffer = buffers.get(sound.id);
@@ -163,6 +171,8 @@ export function createEngine(createContext: () => AudioContext = () => new Audio
     decode,
     hasBuffer,
     setBuffer,
+    removeBuffer,
+    clearBuffers,
     play,
     stop,
     stopAll,

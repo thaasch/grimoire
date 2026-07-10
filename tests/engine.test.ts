@@ -175,4 +175,21 @@ describe('engine volumes and queries', () => {
     expect(ctx.state).toBe('running');
     expect(get(engine.unlocked)).toBe(true);
   });
+
+  it('removeBuffer/clearBuffers evict the cache', () => {
+    const { engine } = setup();
+    engine.setBuffer('s1', FAKE_BUFFER);
+    expect(engine.hasBuffer('s1')).toBe(true);
+    engine.removeBuffer('s1');
+    expect(engine.hasBuffer('s1')).toBe(false);
+    expect(engine.play(makeSound())).toBeNull();
+
+    engine.setBuffer('s1', FAKE_BUFFER);
+    engine.setBuffer('s2', FAKE_BUFFER);
+    expect(engine.hasBuffer('s1')).toBe(true);
+    expect(engine.hasBuffer('s2')).toBe(true);
+    engine.clearBuffers();
+    expect(engine.hasBuffer('s1')).toBe(false);
+    expect(engine.hasBuffer('s2')).toBe(false);
+  });
 });

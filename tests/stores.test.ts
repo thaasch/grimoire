@@ -69,6 +69,12 @@ describe('init', () => {
     expect(['Scene 1', 'Szene 1']).toContain(expectedName);
     expect(get(scenes)[0].name).toBe(expectedName);
   });
+
+  it('init clears brokenSounds', async () => {
+    brokenSounds.set(new Set(['stale-id']));
+    await init();
+    expect(get(brokenSounds).size).toBe(0);
+  });
 });
 
 describe('importFiles', () => {
@@ -258,6 +264,35 @@ describe('playback glue', () => {
     const before = get(settings);
     await activateScene(before.activeSceneId!);
     expect(get(settings)).toBe(before);
+  });
+
+  it('activateScene abandoned when a newer activation wins', async () => {
+    await init();
+    const sceneB = await createScene('B'); // createScene activates it
+    const sceneC = await createScene('C'); // createScene activates it — C is now active
+
+    const loopSound: Sound = {
+      id: 'race-loop',
+      name: 'Race',
+      emoji: '🔥',
+      type: 'loop',
+      defaultVolume: 0.8,
+      duration: 60,
+      mimeType: 'audio/mpeg',
+      createdAt: 0,
+    };
+    await db.saveSound(loopSound); // metadata without bytes — missing-blob path, never touches AudioContext
+    sounds.update((list) => [...list, loopSound]);
+    await addPad(sceneB.id, loopSound.id);
+    await updatePad(sceneB.id, loopSound.id, { autoplay: true });
+
+    // Currently active is C, so activating B is a real transition and proceeds into the pad loop.
+    const p = activateScene(sceneB.id);
+    await setActiveScene(sceneC.id); // a newer activation wins while B's activation is in flight
+    await p;
+
+    expect(get(settings).activeSceneId).toBe(sceneC.id);
+    expect(get(brokenSounds).size).toBe(0); // the abandoned activation bailed before marking
   });
 });
 

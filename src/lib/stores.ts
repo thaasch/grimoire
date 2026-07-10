@@ -55,6 +55,7 @@ export async function init(): Promise<void> {
   sounds.set(allSounds);
   scenes.set(sceneList);
   settings.set(current);
+  brokenSounds.set(new Set());
   lang.set(current.language);
   engine.setMasterVolume(current.masterVolume);
   await db.saveSettings(current);
@@ -235,6 +236,7 @@ export async function updateSound(
 
 export async function removeSound(id: string): Promise<void> {
   engine.stopSound(id, 0.1);
+  engine.removeBuffer(id);
   sounds.update((list) => list.filter((s) => s.id !== id));
   await db.deleteSound(id);
   for (const scene of get(scenes)) {
@@ -286,7 +288,9 @@ export async function activateScene(id: string): Promise<void> {
     if (!pad.autoplay) continue;
     const sound = get(sounds).find((s) => s.id === pad.soundId);
     if (!sound || sound.type !== 'loop') continue;
-    if (!(await ensureBuffer(sound))) {
+    const ok = await ensureBuffer(sound);
+    if (get(settings).activeSceneId !== id) return; // a newer activation won
+    if (!ok) {
       markBroken(sound.id);
       continue;
     }
