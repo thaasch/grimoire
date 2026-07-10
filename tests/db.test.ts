@@ -1,7 +1,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as db from '../src/lib/db';
-import type { Scene, Sound } from '../src/lib/types';
+import type { Scene, Sound, VariationSet } from '../src/lib/types';
 
 const sound: Sound = {
   id: 'a',
@@ -65,5 +65,43 @@ describe('db', () => {
     };
     await db.saveSettings(settings);
     expect(await db.loadSettings()).toEqual(settings);
+  });
+});
+
+const variationSet: VariationSet = {
+  id: 'set1',
+  name: 'Schwerter',
+  emoji: '🎲',
+  soundIds: ['a', 'b'],
+  defaultVolume: 0.7,
+};
+
+describe('db sets (v2)', () => {
+  it('saves, lists and deletes variation sets', async () => {
+    await db.saveSet(variationSet);
+    expect(await db.getAllSets()).toEqual([variationSet]);
+    await db.deleteSet('set1');
+    expect(await db.getAllSets()).toEqual([]);
+  });
+
+  it('upgrades a v1 database in place, preserving data', async () => {
+    await db._resetForTests();
+    // Simulate a database created by GRIMOIRE v1 (version 1, no sets store)
+    const { openDB } = await import('idb');
+    const v1 = await openDB('grimoire', 1, {
+      upgrade(oldDb) {
+        oldDb.createObjectStore('sounds', { keyPath: 'id' });
+        oldDb.createObjectStore('blobs');
+        oldDb.createObjectStore('scenes', { keyPath: 'id' });
+        oldDb.createObjectStore('settings');
+      },
+    });
+    await v1.put('sounds', sound);
+    v1.close();
+
+    // First access through the module triggers the 1 → 2 upgrade
+    expect(await db.getAllSounds()).toEqual([sound]); // v1 data survives
+    await db.saveSet(variationSet); // new store exists and works
+    expect(await db.getAllSets()).toEqual([variationSet]);
   });
 });

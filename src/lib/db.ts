@@ -1,22 +1,28 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { Scene, Settings, Sound } from './types';
+import type { Scene, Settings, Sound, VariationSet } from './types';
 
 interface GrimoireSchema extends DBSchema {
   sounds: { key: string; value: Sound };
   blobs: { key: string; value: ArrayBuffer };
   scenes: { key: string; value: Scene };
   settings: { key: string; value: Settings };
+  sets: { key: string; value: VariationSet };
 }
 
 let dbPromise: Promise<IDBPDatabase<GrimoireSchema>> | null = null;
 
 function getDB(): Promise<IDBPDatabase<GrimoireSchema>> {
-  dbPromise ??= openDB<GrimoireSchema>('grimoire', 1, {
-    upgrade(db) {
-      db.createObjectStore('sounds', { keyPath: 'id' });
-      db.createObjectStore('blobs');
-      db.createObjectStore('scenes', { keyPath: 'id' });
-      db.createObjectStore('settings');
+  dbPromise ??= openDB<GrimoireSchema>('grimoire', 2, {
+    upgrade(db, oldVersion) {
+      if (oldVersion < 1) {
+        db.createObjectStore('sounds', { keyPath: 'id' });
+        db.createObjectStore('blobs');
+        db.createObjectStore('scenes', { keyPath: 'id' });
+        db.createObjectStore('settings');
+      }
+      if (oldVersion < 2) {
+        db.createObjectStore('sets', { keyPath: 'id' });
+      }
     },
   });
   return dbPromise;
@@ -64,6 +70,18 @@ export async function loadSettings(): Promise<Settings | undefined> {
 
 export async function saveSettings(settings: Settings): Promise<void> {
   await (await getDB()).put('settings', settings, 'main');
+}
+
+export async function saveSet(set: VariationSet): Promise<void> {
+  await (await getDB()).put('sets', set);
+}
+
+export async function deleteSet(id: string): Promise<void> {
+  await (await getDB()).delete('sets', id);
+}
+
+export async function getAllSets(): Promise<VariationSet[]> {
+  return (await getDB()).getAll('sets');
 }
 
 export async function _resetForTests(): Promise<void> {
