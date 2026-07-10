@@ -238,3 +238,30 @@ describe('engine coverage gaps (v1 review)', () => {
     expect(get(engine.playing)[0].stopping).toBe(true);
   });
 });
+
+describe('engine instanceKey', () => {
+  it('registers the instance under the given key while playing the sound buffer', () => {
+    const { ctx, engine } = setup();
+    engine.setBuffer('s1', FAKE_BUFFER);
+    engine.play(makeSound({ type: 'oneshot' }), 0.8, 0, 'set-42');
+    expect(get(engine.playing)[0].soundId).toBe('set-42');
+    expect(ctx.sources[0].buffer).toBe(FAKE_BUFFER); // still the sound's buffer
+    expect(engine.isSoundPlaying('set-42')).toBe(true);
+    expect(engine.isSoundPlaying('s1')).toBe(false);
+  });
+
+  it('stopSound stops instances by key', () => {
+    const { ctx, engine } = setup();
+    engine.setBuffer('s1', FAKE_BUFFER);
+    engine.play(makeSound({ type: 'oneshot' }), 0.8, 0, 'set-42');
+    engine.stopSound('set-42');
+    expect(ctx.sources[0].stopped).toEqual([0.3]);
+  });
+
+  it('defaults the key to the sound id', () => {
+    const { engine } = setup();
+    engine.setBuffer('s1', FAKE_BUFFER);
+    engine.play(makeSound());
+    expect(get(engine.playing)[0].soundId).toBe('s1');
+  });
+});

@@ -65,7 +65,12 @@ export function createEngine(createContext: () => AudioContext = () => new Audio
     buffers.clear();
   }
 
-  function play(sound: Sound, volume = sound.defaultVolume, fadeIn = 0): string | null {
+  function play(
+    sound: Sound,
+    volume = sound.defaultVolume,
+    fadeIn = 0,
+    instanceKey = sound.id,
+  ): string | null {
     const c = ensure();
     const buffer = buffers.get(sound.id);
     if (!buffer) return null;
@@ -89,7 +94,7 @@ export function createEngine(createContext: () => AudioContext = () => new Audio
       ...list,
       {
         id,
-        soundId: sound.id,
+        soundId: instanceKey,
         loop: source.loop,
         volume,
         startedAt: c.currentTime,
