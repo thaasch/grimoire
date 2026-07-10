@@ -18,7 +18,7 @@
   role="dialog"
   aria-modal="true"
   aria-labelledby="settings-title"
-  tabindex="0"
+  tabindex="-1"
   use:trapFocus
   onkeydown={(e) => {
     if (e.key === 'Escape') {
