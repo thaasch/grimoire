@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { get } from 'svelte/store';
   import DropOverlay from './components/DropOverlay.svelte';
+  import LibraryModal from './components/LibraryModal.svelte';
   import MixerDock from './components/MixerDock.svelte';
   import SoundEditModal from './components/SoundEditModal.svelte';
   import Stage from './components/Stage.svelte';
@@ -116,6 +117,7 @@
   {#if dragDepth > 0}
     <DropOverlay />
   {/if}
+  <LibraryModal />
   <SoundEditModal />
   <Toasts />
 {/if}
