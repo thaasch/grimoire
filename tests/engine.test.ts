@@ -193,3 +193,48 @@ describe('engine volumes and queries', () => {
     expect(engine.hasBuffer('s2')).toBe(false);
   });
 });
+
+describe('engine coverage gaps (v1 review)', () => {
+  it('decode hands decodeAudioData a copy and returns its buffer', async () => {
+    const { engine } = setup();
+    const data = new Uint8Array([1, 2, 3]).buffer;
+    const buffer = await engine.decode(data);
+    expect((buffer as unknown as { length: number }).length).toBe(3);
+    expect(data.byteLength).toBe(3); // original must not be detached — a copy was decoded
+  });
+
+  it('hasBuffer reflects setBuffer', () => {
+    const { engine } = setup();
+    expect(engine.hasBuffer('s1')).toBe(false);
+    engine.setBuffer('s1', FAKE_BUFFER);
+    expect(engine.hasBuffer('s1')).toBe(true);
+  });
+
+  it('now() is 0 before the context exists and tracks currentTime after', () => {
+    const { ctx, engine } = setup();
+    expect(engine.now()).toBe(0);
+    engine.setBuffer('s1', FAKE_BUFFER);
+    engine.play(makeSound());
+    ctx.currentTime = 3.5;
+    expect(engine.now()).toBe(3.5);
+  });
+
+  it('setMasterVolume after context creation schedules a param update', () => {
+    const { ctx, engine } = setup();
+    engine.setBuffer('s1', FAKE_BUFFER);
+    engine.play(makeSound());
+    engine.setMasterVolume(0.4);
+    expect(ctx.gains[0].gain.events).toContainEqual({ type: 'set', value: 0.4, time: 0 });
+  });
+
+  it('stop survives a throwing source.stop and still marks stopping', () => {
+    const { ctx, engine } = setup();
+    engine.setBuffer('s1', FAKE_BUFFER);
+    const id = engine.play(makeSound())!;
+    ctx.sources[0].stop = () => {
+      throw new Error('already stopped');
+    };
+    engine.stop(id, 0.3);
+    expect(get(engine.playing)[0].stopping).toBe(true);
+  });
+});

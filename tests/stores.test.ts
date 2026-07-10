@@ -106,6 +106,13 @@ describe('importFiles', () => {
       { name: 'ok.mp3', reason: 'unsupported' },
     ]);
   });
+
+  it('classifies exactly 30s as a one-shot (strict > threshold)', async () => {
+    await init();
+    const boundaryDecoder = async () => ({ duration: 30 });
+    const { added } = await importFiles([file('edge.mp3')], boundaryDecoder);
+    expect(added[0].type).toBe('oneshot');
+  });
 });
 
 describe('scenes and pads', () => {
