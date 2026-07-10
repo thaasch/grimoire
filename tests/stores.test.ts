@@ -1,11 +1,16 @@
+import { MockAudioContext } from './mocks/audio';
+(globalThis as unknown as { AudioContext: unknown }).AudioContext = MockAudioContext;
 import 'fake-indexeddb/auto';
 import { get } from 'svelte/store';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as db from '../src/lib/db';
+import { engine } from '../src/lib/engine';
 import { lang, t } from '../src/lib/i18n';
+import { flushPersist } from '../src/lib/persist';
 import {
   activateScene,
   activeScene,
+  addFilesToPad,
   addPad,
   addToSet,
   brokenSounds,
@@ -13,8 +18,10 @@ import {
   createSet,
   deleteScene,
   deleteSet,
+  duplicateScene,
   importFiles,
   init,
+  mergePads,
   moveScene,
   movePad,
   removePad,
@@ -23,15 +30,19 @@ import {
   resolveRef,
   scenes,
   setActiveScene,
+  setFades,
   setLanguage,
   setMasterVolume,
   settings,
   sets,
   sounds,
+  triggerRef,
   triggerSound,
   updatePad,
   updateScene,
   updateSet,
+  _lastPick,
+  _setRngForTests,
 } from '../src/lib/stores';
 import { DEFAULT_SETTINGS, type Settings, type Sound } from '../src/lib/types';
 
@@ -329,6 +340,7 @@ describe('settings', () => {
     await init();
     await setMasterVolume(0.5);
     expect(get(settings).masterVolume).toBe(0.5);
+    await flushPersist(); // masterVolume persistence is now debounced
     expect((await db.loadSettings())?.masterVolume).toBe(0.5);
   });
 });
@@ -412,5 +424,193 @@ describe('variation sets', () => {
     expect(get(sets)).toHaveLength(1);
     expect(get(settings).fades).toEqual({ stop: 0.3, stopAll: 1.5, crossfade: 1.5 });
     expect(get(settings).masterVolume).toBe(0.5);
+  });
+});
+
+const FAKE_BUFFER = { duration: 1 } as unknown as AudioBuffer;
+
+describe('set playback', () => {
+  it('picks a random member, never the same twice in a row', async () => {
+    await init();
+    const { added } = await importFiles([file('a.mp3'), file('b.mp3'), file('c.mp3')], shotDecoder);
+    const [a, b, c] = added.map((s) => s.id);
+    const set = await createSet([a, b, c], { name: 'Hits', emoji: '🎲', defaultVolume: 0.7 });
+    for (const id of [a, b, c]) engine.setBuffer(id, FAKE_BUFFER);
+    _setRngForTests(() => 0); // always take the first candidate
+    await triggerRef(set.id);
+    expect(_lastPick(set.id)).toBe(a);
+    await triggerRef(set.id);
+    expect(_lastPick(set.id)).toBe(b); // a was excluded as the previous pick
+    await triggerRef(set.id);
+    expect(_lastPick(set.id)).toBe(a); // b excluded, a is first candidate again
+    const setInstances = get(engine.playing).filter((i) => i.soundId === set.id);
+    expect(setInstances.length).toBe(3); // all registered under the set's id
+  });
+
+  it('falls back to another member when the pick is unplayable', async () => {
+    await init();
+    const { added } = await importFiles([file('real.mp3')], shotDecoder);
+    const real = added[0].id;
+    const orphan: Sound = {
+      id: 'ghost-member',
+      name: 'Ghost',
+      emoji: '👻',
+      type: 'oneshot',
+      defaultVolume: 1,
+      duration: 2,
+      mimeType: 'audio/mpeg',
+      createdAt: 0,
+    };
+    await db.saveSound(orphan); // metadata, no bytes
+    sounds.update((list) => [...list, orphan]);
+    const set = await createSet(['ghost-member', real], { name: 'x', emoji: '🎲', defaultVolume: 1 });
+    engine.setBuffer(real, FAKE_BUFFER);
+    _setRngForTests(() => 0); // would pick the ghost first
+    await triggerRef(set.id);
+    expect(_lastPick(set.id)).toBe(real);
+    expect(get(brokenSounds).has(set.id)).toBe(false);
+  });
+
+  it('marks the set broken only when every member is unplayable', async () => {
+    await init();
+    const mk = (id: string): Sound => ({
+      id,
+      name: id,
+      emoji: '👻',
+      type: 'oneshot',
+      defaultVolume: 1,
+      duration: 2,
+      mimeType: 'audio/mpeg',
+      createdAt: 0,
+    });
+    for (const id of ['g1', 'g2']) {
+      await db.saveSound(mk(id));
+      sounds.update((list) => [...list, mk(id)]);
+    }
+    const set = await createSet(['g1', 'g2'], { name: 'x', emoji: '🎲', defaultVolume: 1 });
+    await triggerRef(set.id);
+    expect(get(brokenSounds).has(set.id)).toBe(true);
+  });
+});
+
+describe('mergePads and addFilesToPad', () => {
+  it('merging two one-shot pads creates a set at the target pad', async () => {
+    await init();
+    const sceneId = get(scenes)[0].id;
+    const [a, b] = await twoOneshots();
+    const ok = await mergePads(sceneId, a, b);
+    expect(ok).toBe(true);
+    const pads = get(activeScene)!.pads;
+    expect(pads).toHaveLength(1);
+    const set = get(sets)[0];
+    expect(pads[0].soundId).toBe(set.id);
+    expect(set.soundIds).toEqual([b, a]); // target first
+    expect(set.name).toBe(get(sounds).find((s) => s.id === b)!.name);
+  });
+
+  it('merging onto an existing set-pad joins it', async () => {
+    await init();
+    const sceneId = get(scenes)[0].id;
+    const [a, b] = await twoOneshots();
+    await mergePads(sceneId, a, b);
+    const setId = get(sets)[0].id;
+    const { added } = await importFiles([file('c.mp3')], shotDecoder);
+    const ok = await mergePads(sceneId, added[0].id, setId);
+    expect(ok).toBe(true);
+    expect(get(sets)[0].soundIds).toHaveLength(3);
+    expect(get(activeScene)!.pads).toHaveLength(1);
+  });
+
+  it('refuses to merge loops', async () => {
+    await init();
+    const sceneId = get(scenes)[0].id;
+    const { added: loops } = await importFiles([file('amb.mp3')], loopDecoder);
+    const [a] = await twoOneshots();
+    expect(await mergePads(sceneId, loops[0].id, a)).toBe(false);
+    expect(await mergePads(sceneId, a, loops[0].id)).toBe(false);
+    expect(get(sets)).toEqual([]);
+  });
+
+  it('addFilesToPad converts a sound pad into a set and rejects loops from it', async () => {
+    await init();
+    const sceneId = get(scenes)[0].id;
+    const { added: base } = await importFiles([file('hit.mp3')], shotDecoder);
+    let call = 0;
+    const alternating = async () => ({ duration: ++call === 1 ? 2 : 120 }); // 1st file one-shot, 2nd loop
+    const result = await addFilesToPad(sceneId, base[0].id, [file('x.mp3'), file('y.mp3')], alternating);
+    expect(result.applied).toBe(true);
+    expect(result.rejectedLoops).toBe(1);
+    const set = get(sets)[0];
+    expect(set.soundIds).toHaveLength(2); // base + the one-shot upload
+    expect(get(activeScene)!.pads.some((p) => p.soundId === set.id)).toBe(true);
+    expect(get(sounds).some((s) => s.type === 'loop')).toBe(true); // loop stayed in the library
+  });
+
+  it('addFilesToPad onto a loop pad leaves everything library-only', async () => {
+    await init();
+    const sceneId = get(scenes)[0].id;
+    const { added: loops } = await importFiles([file('amb.mp3')], loopDecoder);
+    const result = await addFilesToPad(sceneId, loops[0].id, [file('x.mp3')], shotDecoder);
+    expect(result.applied).toBe(false);
+    expect(get(sets)).toEqual([]);
+  });
+});
+
+describe('duplicateScene', () => {
+  it('deep-copies pads, inserts after the original, renumbers and activates', async () => {
+    await init();
+    const first = get(scenes)[0];
+    await importFiles([file('a.mp3')], shotDecoder);
+    await createScene('Zwei');
+    const copy = await duplicateScene(first.id);
+    expect(copy).not.toBeNull();
+    const ordered = [...get(scenes)].sort((x, y) => x.position - y.position);
+    expect(ordered.map((s) => s.id)).toEqual([first.id, copy!.id, ordered[2].id]);
+    expect(ordered.map((s) => s.position)).toEqual([0, 1, 2]);
+    expect(copy!.name).toMatch(/\((Kopie|copy)\)$/);
+    expect(copy!.pads).toEqual(get(scenes).find((s) => s.id === first.id)!.pads);
+    expect(copy!.pads).not.toBe(get(scenes).find((s) => s.id === first.id)!.pads);
+    expect(get(settings).activeSceneId).toBe(copy!.id);
+  });
+});
+
+describe('debounced persistence', () => {
+  it('updatePad with debounce coalesces db writes but updates the store immediately', async () => {
+    // Restrict the fake clock to setTimeout/clearTimeout only: faking setImmediate
+    // (vitest's default) stalls fake-indexeddb, whose task queue runs on setImmediate.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      await init();
+      const sceneId = get(scenes)[0].id;
+      const { added } = await importFiles([file('a.mp3')], shotDecoder);
+      for (const v of [0.1, 0.2, 0.3]) {
+        await updatePad(sceneId, added[0].id, { volume: v }, true);
+      }
+      expect(get(activeScene)!.pads[0].volume).toBe(0.3); // store immediate
+      const beforeFlush = (await db.getAllScenes()).find((s) => s.id === sceneId)!;
+      expect(beforeFlush.pads[0].volume).toBeUndefined(); // not yet persisted
+      await vi.advanceTimersByTimeAsync(300);
+      const after = (await db.getAllScenes()).find((s) => s.id === sceneId)!;
+      expect(after.pads[0].volume).toBe(0.3);
+    } finally {
+      await flushPersist();
+      vi.useRealTimers();
+    }
+  });
+
+  it('setFades persists after the debounce window', async () => {
+    // Restrict the fake clock to setTimeout/clearTimeout only: faking setImmediate
+    // (vitest's default) stalls fake-indexeddb, whose task queue runs on setImmediate.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      await init();
+      await setFades({ crossfade: 2.5 });
+      expect(get(settings).fades.crossfade).toBe(2.5);
+      await vi.advanceTimersByTimeAsync(300);
+      expect((await db.loadSettings())!.fades.crossfade).toBe(2.5);
+    } finally {
+      await flushPersist();
+      vi.useRealTimers();
+    }
   });
 });
