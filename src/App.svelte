@@ -3,6 +3,7 @@
   import DropOverlay from './components/DropOverlay.svelte';
   import Toasts from './components/Toasts.svelte';
   import TopBar from './components/TopBar.svelte';
+  import Stage from './components/Stage.svelte';
   import { engine } from './lib/engine';
   import { importFiles, init } from './lib/stores';
   import { toast } from './lib/toasts';
@@ -41,7 +42,7 @@
 {#if ready}
   <div class="app">
     <TopBar />
-    <main></main>
+    <main><Stage /></main>
     <footer></footer>
   </div>
   {#if dragDepth > 0}
