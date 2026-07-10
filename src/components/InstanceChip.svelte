@@ -1,15 +1,17 @@
 <script lang="ts">
   import { engine, type Instance } from '../lib/engine';
   import { t } from '../lib/i18n';
-  import { settings, sounds } from '../lib/stores';
+  import { sets, settings, sounds } from '../lib/stores';
 
   let { inst }: { inst: Instance } = $props();
 
-  const sound = $derived($sounds.find((s) => s.id === inst.soundId));
+  const entity = $derived(
+    $sounds.find((s) => s.id === inst.soundId) ?? $sets.find((s) => s.id === inst.soundId),
+  );
 </script>
 
 <div class="chip" class:stopping={inst.stopping}>
-  <span class="who">{sound?.emoji ?? '🎵'} {sound?.name ?? '?'}</span>
+  <span class="who">{entity?.emoji ?? '🎵'} {entity?.name ?? '?'}</span>
   {#if inst.loop}<span class="badge">∞</span>{/if}
   <input
     type="range"

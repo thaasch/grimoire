@@ -5,11 +5,14 @@
   import {
     activeScene,
     addPad,
+    deleteSet,
     editingSound,
     init,
     libraryOpen,
     removeSound,
+    sets,
     sounds,
+    triggerRef,
     triggerSound,
   } from '../lib/stores';
   import { toast } from '../lib/toasts';
@@ -17,11 +20,30 @@
   let query = $state('');
   let fileInput: HTMLInputElement | undefined = $state();
 
-  const filtered = $derived(
-    $sounds
-      .filter((s) => s.name.toLowerCase().includes(query.trim().toLowerCase()))
-      .sort((a, b) => a.name.localeCompare(b.name)),
-  );
+  interface Entry {
+    id: string;
+    name: string;
+    emoji: string;
+    isSet: boolean;
+    detail: string;
+  }
+
+  const entries = $derived.by((): Entry[] => {
+    const q = query.trim().toLowerCase();
+    const soundEntries = $sounds
+      .filter((s) => s.name.toLowerCase().includes(q))
+      .map((s) => ({
+        id: s.id,
+        name: s.name,
+        emoji: s.emoji,
+        isSet: false,
+        detail: `${fmt(s.duration)} · ${s.type === 'loop' ? '∞' : '1×'}`,
+      }));
+    const setEntries = $sets
+      .filter((s) => s.name.toLowerCase().includes(q))
+      .map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, isSet: true, detail: `🎲 ${s.soundIds.length}` }));
+    return [...soundEntries, ...setEntries].sort((a, b) => a.name.localeCompare(b.name));
+  });
 
   const inScene = $derived(new Set($activeScene?.pads.map((p) => p.soundId) ?? []));
 
@@ -59,8 +81,10 @@
     }
   }
 
-  async function del(id: string, name: string) {
-    if (confirm($t('library.deleteConfirm', { name }))) await removeSound(id);
+  async function del(entry: Entry) {
+    if (!confirm($t('library.deleteConfirm', { name: entry.name }))) return;
+    if (entry.isSet) await deleteSet(entry.id);
+    else await removeSound(entry.id);
   }
 </script>
 
@@ -75,24 +99,24 @@
       <input type="file" accept=".zip" bind:this={fileInput} onchange={doImport} hidden />
       <button class="x" onclick={() => libraryOpen.set(false)}>✕</button>
     </header>
-    {#if $sounds.length === 0}
+    {#if $sounds.length === 0 && $sets.length === 0}
       <p class="empty">{$t('library.empty')}</p>
     {:else}
       <ul>
-        {#each filtered as sound (sound.id)}
+        {#each entries as entry (entry.id)}
           <li>
-            <button class="play" title={sound.name} onclick={() => triggerSound(sound.id)}>
-              {sound.emoji}
+            <button class="play" title={entry.name} aria-label={$t('a11y.preview')} onclick={() => triggerRef(entry.id)}>
+              {entry.emoji}
             </button>
-            <span class="name">{sound.name}</span>
-            <span class="detail">{fmt(sound.duration)} · {sound.type === 'loop' ? '∞' : '1×'}</span>
-            <button class="ghost" title={$t('pad.editSound')} onclick={() => editingSound.set(sound.id)}>⚙</button>
+            <span class="name">{entry.name}</span>
+            <span class="detail">{entry.detail}</span>
+            <button class="ghost" title={$t('pad.editSound')} aria-label={$t('a11y.editSound')} onclick={() => editingSound.set(entry.id)}>⚙</button>
             <button
               class="ghost"
-              disabled={inScene.has(sound.id)}
-              onclick={() => $activeScene && addPad($activeScene.id, sound.id)}
+              disabled={inScene.has(entry.id)}
+              onclick={() => $activeScene && addPad($activeScene.id, entry.id)}
             >{$t('library.addToScene')}</button>
-            <button class="del" onclick={() => del(sound.id, sound.name)}>🗑</button>
+            <button class="del" aria-label={$t('a11y.delete')} onclick={() => del(entry)}>🗑</button>
           </li>
         {/each}
       </ul>
