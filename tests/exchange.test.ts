@@ -58,4 +58,28 @@ describe('exchange', () => {
     const zip = zipSync({ 'readme.txt': strToU8('nope') });
     await expect(importZip(zip)).rejects.toThrow('manifest.json');
   });
+
+  it('throws on an unknown manifest version', async () => {
+    const zip = zipSync({
+      'manifest.json': strToU8(JSON.stringify({ version: 2, sounds: [], scenes: [], settings: {} })),
+    });
+    await expect(importZip(zip)).rejects.toThrow('Unsupported archive version');
+  });
+
+  it('merges into a non-empty library, overwriting by id and keeping unrelated entries', async () => {
+    await db.saveSound(sound, new Uint8Array([9, 9]).buffer);
+    await db.saveScene(scene);
+    const zip = await exportAll();
+    await db._resetForTests();
+
+    const other: Sound = { ...sound, id: 'b', name: 'Other' };
+    await db.saveSound(other, new Uint8Array([5]).buffer);
+    await db.saveSound({ ...sound, name: 'Stale' }, new Uint8Array([1]).buffer);
+
+    await importZip(zip);
+    const all = (await db.getAllSounds()).sort((x, y) => x.id.localeCompare(y.id));
+    expect(all).toEqual([sound, other]);
+    expect(new Uint8Array((await db.getBlob('a'))!)).toEqual(new Uint8Array([9, 9]));
+    expect(new Uint8Array((await db.getBlob('b'))!)).toEqual(new Uint8Array([5]));
+  });
 });
