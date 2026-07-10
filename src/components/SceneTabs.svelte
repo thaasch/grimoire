@@ -14,6 +14,7 @@
 
   let menuFor: string | null = $state(null);
   let menuPos = $state({ x: 0, y: 0 });
+  let menuEl: HTMLDivElement | undefined = $state();
   let renamingId: string | null = $state(null);
   let renameValue = $state('');
   let dragIndex: number | null = $state(null);
@@ -25,11 +26,30 @@
     node.select();
   }
 
+  function showMenu(id: string, x: number, y: number) {
+    menuFor = id;
+    menuPos = { x, y };
+  }
+
   function openMenu(e: MouseEvent, id: string) {
     e.preventDefault();
-    menuFor = id;
-    menuPos = { x: e.clientX, y: e.clientY };
+    showMenu(id, e.clientX, e.clientY);
   }
+
+  function openMenuFromKeyboard(e: KeyboardEvent, id: string) {
+    if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) {
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      showMenu(id, rect.left, rect.bottom);
+    }
+  }
+
+  $effect(() => {
+    if (menuFor && menuEl) {
+      menuEl.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    }
+  });
 
   function startRename(id: string, current: string) {
     renamingId = id;
@@ -85,6 +105,7 @@
         onclick={() => activateScene(scene.id)}
         ondblclick={() => startRename(scene.id, scene.name)}
         oncontextmenu={(e) => openMenu(e, scene.id)}
+        onkeydown={(e) => openMenuFromKeyboard(e, scene.id)}
       >{scene.emoji} {scene.name}</button>
     {/if}
   {/each}
@@ -95,10 +116,24 @@
   {@const scene = ordered.find((s) => s.id === menuFor)}
   <button class="backdrop" onclick={() => (menuFor = null)} aria-label="close"></button>
   {#if scene}
-    <div class="menu" style="left: {menuPos.x}px; top: {menuPos.y}px">
+    <div
+      class="menu"
+      role="menu"
+      tabindex="-1"
+      bind:this={menuEl}
+      style="left: {menuPos.x}px; top: {menuPos.y}px"
+      onkeydown={(e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          menuFor = null;
+        }
+      }}
+    >
       <div class="emojis">
         {#each EMOJIS as emoji (emoji)}
           <button
+            role="menuitem"
+            aria-label={emoji}
             onclick={() => {
               updateScene(scene.id, { emoji });
               menuFor = null;
@@ -106,10 +141,10 @@
           >{emoji}</button>
         {/each}
       </div>
-      <button class="item" onclick={() => startRename(scene.id, scene.name)}>
+      <button class="item" role="menuitem" onclick={() => startRename(scene.id, scene.name)}>
         {$t('scenes.rename')}
       </button>
-      <button class="item danger" onclick={() => remove(scene.id, scene.name)}>
+      <button class="item danger" role="menuitem" onclick={() => remove(scene.id, scene.name)}>
         {$t('scenes.delete')}
       </button>
     </div>
@@ -126,7 +161,7 @@
   .tab {
     white-space: nowrap;
     color: var(--muted);
-    border: 1px solid rgba(107, 93, 122, 0.3);
+    border: 1px solid var(--violet-dim);
     border-radius: 3px;
     padding: 0.35rem 0.9rem;
     font-size: 0.85rem;
@@ -137,8 +172,8 @@
   }
 
   .tab.active {
-    background: rgba(232, 200, 126, 0.15);
-    border-color: rgba(232, 200, 126, 0.5);
+    background: var(--gold-soft);
+    border-color: var(--gold-strong);
     color: var(--gold);
   }
 
@@ -167,7 +202,7 @@
     display: flex;
     flex-direction: column;
     gap: 0.2rem;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+    box-shadow: var(--shadow-pop);
   }
 
   .emojis {

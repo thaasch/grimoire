@@ -12,6 +12,15 @@
   --danger: #e89a9a;
   --danger-border: rgba(220, 80, 80, 0.5);
   --danger-bg: rgba(180, 40, 40, 0.2);
+  --violet-dim: rgba(107, 93, 122, 0.3);
+  --gold-soft: rgba(232, 200, 126, 0.15);
+  --gold-strong: rgba(232, 200, 126, 0.5);
+  --ink-deep: rgba(26, 20, 36, 0.9);
+  --ring-track: rgba(255, 255, 255, 0.12);
+  --overlay: rgba(13, 10, 18, 0.7);
+  --overlay-strong: rgba(13, 10, 18, 0.85);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-modal: 0 12px 40px rgba(0, 0, 0, 0.7);
   --font-display: Georgia, 'Times New Roman', serif;
   --font-ui: system-ui, -apple-system, sans-serif;
 }
