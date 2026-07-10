@@ -11,6 +11,7 @@
   import { engine } from './lib/engine';
   import { isTypingTarget, padIndexForCode } from './lib/hotkeys';
   import { t } from './lib/i18n';
+  import { flushPersist } from './lib/persist';
   import {
     activateScene,
     activeScene,
@@ -29,9 +30,16 @@
 
   const supported = typeof AudioContext !== 'undefined';
 
-  onMount(async () => {
-    await init();
-    ready = true;
+  onMount(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') void flushPersist();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    void (async () => {
+      await init();
+      ready = true;
+    })();
+    return () => document.removeEventListener('visibilitychange', onVisibility);
   });
 
   async function handleDrop(e: DragEvent) {
@@ -65,7 +73,7 @@
     if (!get(engine.unlocked)) engine.unlock();
 
     if (e.key === 'Escape') {
-      engine.stopAll(1.5);
+      engine.stopAll(get(settings).fades.stopAll);
       return;
     }
 
@@ -118,6 +126,7 @@
   ondrop={handleDrop}
   onkeydown={onKeydown}
   onpointerdown={onPointerDown}
+  onbeforeunload={() => void flushPersist()}
 />
 
 {#if !supported}

@@ -4,6 +4,7 @@
     activateScene,
     createScene,
     deleteScene,
+    duplicateScene,
     moveScene,
     scenes,
     settings,
@@ -145,6 +146,16 @@
       </div>
       <button class="item" role="menuitem" onclick={() => startRename(scene.id, scene.name)}>
         {$t('scenes.rename')}
+      </button>
+      <button
+        class="item"
+        role="menuitem"
+        onclick={() => {
+          duplicateScene(scene.id);
+          menuFor = null;
+        }}
+      >
+        {$t('scenes.duplicate')}
       </button>
       <button class="item danger" role="menuitem" onclick={() => remove(scene.id, scene.name)}>
         {$t('scenes.delete')}

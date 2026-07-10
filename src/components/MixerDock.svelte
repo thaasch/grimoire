@@ -31,7 +31,7 @@
         oninput={(e) => setMasterVolume(Number(e.currentTarget.value))}
       />
     </label>
-    <button class="stopall" onclick={() => engine.stopAll(1.5)}>⏹ {$t('mixer.stopAll')}</button>
+    <button class="stopall" onclick={() => engine.stopAll($settings.fades.stopAll)}>⏹ {$t('mixer.stopAll')}</button>
   </div>
 </footer>
 

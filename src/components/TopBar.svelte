@@ -3,10 +3,12 @@
   import { lang, t, type Lang } from '../lib/i18n';
   import { editMode, libraryOpen, searchQuery, setLanguage } from '../lib/stores';
   import SceneTabs from './SceneTabs.svelte';
+  import SettingsPopover from './SettingsPopover.svelte';
 
   const LANGS: Lang[] = ['de', 'en'];
 
   let searchInput: HTMLInputElement | undefined = $state();
+  let settingsOpen = $state(false);
 
   onMount(() => {
     const focus = () => searchInput?.focus();
@@ -24,13 +26,16 @@
       bind:this={searchInput}
       bind:value={$searchQuery}
       placeholder={$t('search.placeholder')}
+      aria-label={$t('search.placeholder')}
     />
     <button
       class="ghost"
       class:active={$editMode}
       onclick={() => editMode.update((v) => !v)}
       title={$t('edit.mode')}
+      aria-label={$t('a11y.editMode')}
     >✎</button>
+    <button class="ghost" aria-label={$t('a11y.settings')} onclick={() => (settingsOpen = true)}>⚙</button>
     <button class="ghost" onclick={() => libraryOpen.set(true)}>{$t('library.title')}</button>
     <div class="langs">
       {#each LANGS as language (language)}
@@ -41,6 +46,10 @@
     </div>
   </div>
 </header>
+
+{#if settingsOpen}
+  <SettingsPopover onclose={() => (settingsOpen = false)} />
+{/if}
 
 <style>
   header {

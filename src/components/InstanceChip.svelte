@@ -1,6 +1,7 @@
 <script lang="ts">
   import { engine, type Instance } from '../lib/engine';
-  import { sounds } from '../lib/stores';
+  import { t } from '../lib/i18n';
+  import { settings, sounds } from '../lib/stores';
 
   let { inst }: { inst: Instance } = $props();
 
@@ -18,7 +19,7 @@
     value={inst.volume}
     oninput={(e) => engine.setInstanceVolume(inst.id, Number(e.currentTarget.value))}
   />
-  <button class="x" onclick={() => engine.stop(inst.id)}>✕</button>
+  <button class="x" aria-label={$t('a11y.stop')} onclick={() => engine.stop(inst.id, $settings.fades.stop)}>✕</button>
 </div>
 
 <style>
