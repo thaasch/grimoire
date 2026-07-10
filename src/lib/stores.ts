@@ -1,7 +1,7 @@
 import { derived, get, writable } from 'svelte/store';
 import * as db from './db';
 import { engine } from './engine';
-import { detectLang, lang, type Lang } from './i18n';
+import { detectLang, lang, t, type Lang } from './i18n';
 import { DEFAULT_SETTINGS, type Pad, type Scene, type Settings, type Sound } from './types';
 
 export const sounds = writable<Sound[]>([]);
@@ -26,7 +26,8 @@ function nextPosition(items: { position: number }[]): number {
 }
 
 function defaultSceneName(language: Lang): string {
-  return language === 'de' ? 'Szene 1' : 'Scene 1';
+  lang.set(language);
+  return get(t)('scenes.defaultName', { n: 1 });
 }
 
 export async function init(): Promise<void> {
@@ -117,7 +118,13 @@ export async function importFiles(
     sounds.update((list) => [...list, ...added]);
     const scene = get(activeScene);
     if (scene) {
-      for (const sound of added) await addPad(scene.id, sound.id);
+      for (const sound of added) {
+        try {
+          await addPad(scene.id, sound.id);
+        } catch {
+          // pad creation failed (e.g. quota) — the sound is still in the library
+        }
+      }
     }
   }
   return { added, failed };
@@ -161,9 +168,14 @@ export async function moveScene(from: number, to: number): Promise<void> {
 }
 
 export async function deleteScene(id: string): Promise<void> {
-  scenes.update((list) => list.filter((s) => s.id !== id));
+  const renumbered = [...get(scenes)]
+    .filter((s) => s.id !== id)
+    .sort((a, b) => a.position - b.position)
+    .map((s, i) => ({ ...s, position: i }));
+  scenes.set(renumbered);
   await db.deleteScene(id);
-  let remaining = get(scenes);
+  for (const scene of renumbered) await db.saveScene(scene);
+  let remaining = renumbered;
   if (remaining.length === 0) {
     await createScene(defaultSceneName(get(settings).language));
     remaining = get(scenes);

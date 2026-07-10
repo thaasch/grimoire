@@ -2,7 +2,9 @@ import 'fake-indexeddb/auto';
 import { get } from 'svelte/store';
 import { beforeEach, describe, expect, it } from 'vitest';
 import * as db from '../src/lib/db';
+import { lang, t } from '../src/lib/i18n';
 import {
+  activateScene,
   activeScene,
   addPad,
   brokenSounds,
@@ -10,14 +12,19 @@ import {
   deleteScene,
   importFiles,
   init,
+  moveScene,
   movePad,
   removePad,
   removeSound,
   scenes,
+  setActiveScene,
+  setLanguage,
+  setMasterVolume,
   settings,
   sounds,
   triggerSound,
   updatePad,
+  updateScene,
 } from '../src/lib/stores';
 import { DEFAULT_SETTINGS, type Sound } from '../src/lib/types';
 
@@ -52,6 +59,15 @@ describe('init', () => {
     await init();
     expect(get(scenes)).toHaveLength(1);
     expect(get(scenes)[0].id).toBe(first.id);
+  });
+
+  it('seeds the first scene with a name from the language dictionary', async () => {
+    await init();
+    const language = get(settings).language;
+    expect(get(lang)).toBe(language);
+    const expectedName = get(t)('scenes.defaultName', { n: 1 });
+    expect(['Scene 1', 'Szene 1']).toContain(expectedName);
+    expect(get(scenes)[0].name).toBe(expectedName);
   });
 });
 
@@ -102,6 +118,42 @@ describe('scenes and pads', () => {
     expect(get(scenes)).toHaveLength(1);
     expect(get(scenes)[0].id).not.toBe(only.id);
     expect(get(settings).activeSceneId).toBe(get(scenes)[0].id);
+  });
+
+  it('deleteScene of a middle scene renumbers survivors contiguously', async () => {
+    await init();
+    const first = get(scenes)[0];
+    const second = await createScene('Two');
+    const third = await createScene('Three');
+    await deleteScene(second.id);
+    const remaining = [...get(scenes)].sort((a, b) => a.position - b.position);
+    expect(remaining.map((s) => s.id)).toEqual([first.id, third.id]);
+    expect(remaining.map((s) => s.position)).toEqual([0, 1]);
+    const stored = [...(await db.getAllScenes())].sort((a, b) => a.position - b.position);
+    expect(stored.map((s) => s.id)).toEqual([first.id, third.id]);
+    expect(stored.map((s) => s.position)).toEqual([0, 1]);
+  });
+
+  it('moveScene(0, 2) reorders and renumbers positions contiguously', async () => {
+    await init();
+    const first = get(scenes)[0];
+    const second = await createScene('Two');
+    const third = await createScene('Three');
+    await moveScene(0, 2);
+    const ordered = [...get(scenes)].sort((a, b) => a.position - b.position);
+    expect(ordered.map((s) => s.id)).toEqual([second.id, third.id, first.id]);
+    expect(ordered.map((s) => s.position)).toEqual([0, 1, 2]);
+    const stored = [...(await db.getAllScenes())].sort((a, b) => a.position - b.position);
+    expect(stored.map((s) => s.id)).toEqual([second.id, third.id, first.id]);
+  });
+
+  it('updateScene renames and persists', async () => {
+    await init();
+    const sceneId = get(scenes)[0].id;
+    await updateScene(sceneId, { name: 'Renamed', emoji: '🐲' });
+    expect(get(scenes)[0]).toMatchObject({ name: 'Renamed', emoji: '🐲' });
+    const stored = await db.getAllScenes();
+    expect(stored.find((s) => s.id === sceneId)).toMatchObject({ name: 'Renamed', emoji: '🐲' });
   });
 
   it('movePad reorders and renumbers positions', async () => {
@@ -159,5 +211,69 @@ describe('playback glue', () => {
     sounds.update((list) => [...list, orphan]);
     await triggerSound('ghost');
     expect(get(brokenSounds).has('ghost')).toBe(true);
+  });
+
+  it('activateScene switches the active scene and marks broken only the autoplay loop with a missing blob', async () => {
+    await init();
+    const sceneA = get(scenes)[0];
+    const sceneB = await createScene('B'); // createScene activates it
+    await setActiveScene(sceneA.id); // switch back so activateScene(sceneB) is a real transition
+
+    const autoplaySound: Sound = {
+      id: 'auto-loop',
+      name: 'Auto',
+      emoji: '🔥',
+      type: 'loop',
+      defaultVolume: 0.8,
+      duration: 60,
+      mimeType: 'audio/mpeg',
+      createdAt: 0,
+    };
+    const manualSound: Sound = {
+      id: 'manual-loop',
+      name: 'Manual',
+      emoji: '🎵',
+      type: 'loop',
+      defaultVolume: 0.8,
+      duration: 60,
+      mimeType: 'audio/mpeg',
+      createdAt: 0,
+    };
+    await db.saveSound(autoplaySound); // metadata without bytes
+    await db.saveSound(manualSound); // metadata without bytes
+    sounds.update((list) => [...list, autoplaySound, manualSound]);
+    await addPad(sceneB.id, autoplaySound.id);
+    await addPad(sceneB.id, manualSound.id);
+    await updatePad(sceneB.id, autoplaySound.id, { autoplay: true });
+
+    await activateScene(sceneB.id);
+
+    expect(get(settings).activeSceneId).toBe(sceneB.id);
+    expect(get(brokenSounds).has(autoplaySound.id)).toBe(true);
+    expect(get(brokenSounds).has(manualSound.id)).toBe(false);
+  });
+
+  it('activateScene with the already-active id is a no-op', async () => {
+    await init();
+    const before = get(settings);
+    await activateScene(before.activeSceneId!);
+    expect(get(settings)).toBe(before);
+  });
+});
+
+describe('settings', () => {
+  it('setLanguage updates settings, persists, and sets the lang store', async () => {
+    await init();
+    await setLanguage('en');
+    expect(get(settings).language).toBe('en');
+    expect(get(lang)).toBe('en');
+    expect((await db.loadSettings())?.language).toBe('en');
+  });
+
+  it('setMasterVolume updates settings and persists', async () => {
+    await init();
+    await setMasterVolume(0.5);
+    expect(get(settings).masterVolume).toBe(0.5);
+    expect((await db.loadSettings())?.masterVolume).toBe(0.5);
   });
 });
