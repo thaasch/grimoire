@@ -2,11 +2,12 @@ import { derived, get, writable } from 'svelte/store';
 import * as db from './db';
 import { engine } from './engine';
 import { detectLang, lang, t, type Lang } from './i18n';
-import { DEFAULT_SETTINGS, type Pad, type Scene, type Settings, type Sound } from './types';
+import { DEFAULT_FADES, DEFAULT_SETTINGS, type Pad, type PadColor, type Scene, type Settings, type Sound, type VariationSet } from './types';
 
 export const sounds = writable<Sound[]>([]);
 export const scenes = writable<Scene[]>([]);
 export const settings = writable<Settings>({ ...DEFAULT_SETTINGS });
+export const sets = writable<VariationSet[]>([]);
 export const brokenSounds = writable<Set<string>>(new Set());
 export const searchQuery = writable('');
 export const editMode = writable(false);
@@ -16,6 +17,19 @@ export const editingSound = writable<string | null>(null);
 export const activeScene = derived([scenes, settings], ([$scenes, $settings]) =>
   $scenes.find((s) => s.id === $settings.activeSceneId) ?? null,
 );
+
+export type Ref =
+  | { kind: 'sound'; sound: Sound }
+  | { kind: 'set'; set: VariationSet }
+  | null;
+
+export function resolveRef(id: string): Ref {
+  const set = get(sets).find((s) => s.id === id);
+  if (set) return { kind: 'set', set };
+  const sound = get(sounds).find((s) => s.id === id);
+  if (sound) return { kind: 'sound', sound };
+  return null;
+}
 
 export type Decoder = (data: ArrayBuffer) => Promise<{ duration: number }>;
 
@@ -31,12 +45,18 @@ function defaultSceneName(language: Lang): string {
 }
 
 export async function init(): Promise<void> {
-  const [allSounds, allScenes, stored] = await Promise.all([
+  const [allSounds, allScenes, allSets, stored] = await Promise.all([
     db.getAllSounds(),
     db.getAllScenes(),
+    db.getAllSets(),
     db.loadSettings(),
   ]);
-  const current: Settings = stored ?? { ...DEFAULT_SETTINGS, language: detectLang() };
+  const base = stored ?? { ...DEFAULT_SETTINGS, language: detectLang() };
+  const current: Settings = {
+    ...DEFAULT_SETTINGS,
+    ...base,
+    fades: { ...DEFAULT_FADES, ...base.fades },
+  };
   let sceneList = [...allScenes].sort((a, b) => a.position - b.position);
   if (sceneList.length === 0) {
     const first: Scene = {
@@ -54,6 +74,7 @@ export async function init(): Promise<void> {
   }
   sounds.set(allSounds);
   scenes.set(sceneList);
+  sets.set(allSets);
   settings.set(current);
   brokenSounds.set(new Set());
   lang.set(current.language);
@@ -239,6 +260,82 @@ export async function removeSound(id: string): Promise<void> {
   engine.removeBuffer(id);
   sounds.update((list) => list.filter((s) => s.id !== id));
   await db.deleteSound(id);
+  for (const scene of get(scenes)) {
+    if (scene.pads.some((p) => p.soundId === id)) await removePad(scene.id, id);
+  }
+  for (const set of get(sets).filter((s) => s.soundIds.includes(id))) {
+    await removeFromSet(set.id, id);
+  }
+}
+
+function assertOneshotMembers(memberIds: string[]): Sound[] {
+  const members = memberIds.map((id) => get(sounds).find((s) => s.id === id));
+  if (members.some((m) => !m || m.type !== 'oneshot')) throw new Error('loopInSet');
+  return members as Sound[];
+}
+
+export async function createSet(
+  memberIds: string[],
+  template: { name: string; emoji: string; defaultVolume: number; color?: PadColor },
+): Promise<VariationSet> {
+  if (memberIds.length < 2) throw new Error('tooFewMembers');
+  assertOneshotMembers(memberIds);
+  const set: VariationSet = { id: crypto.randomUUID(), soundIds: [...memberIds], ...template };
+  sets.update((list) => [...list, set]);
+  await db.saveSet(set);
+  return set;
+}
+
+async function patchSet(id: string, fn: (set: VariationSet) => VariationSet): Promise<void> {
+  let updated: VariationSet | undefined;
+  sets.update((list) => list.map((s) => (s.id === id ? (updated = fn(s)) : s)));
+  if (updated) await db.saveSet(updated);
+}
+
+export async function updateSet(
+  id: string,
+  patch: Partial<Pick<VariationSet, 'name' | 'emoji' | 'defaultVolume' | 'color'>>,
+): Promise<void> {
+  await patchSet(id, (s) => ({ ...s, ...patch }));
+}
+
+export async function addToSet(setId: string, soundIds: string[]): Promise<void> {
+  const set = get(sets).find((s) => s.id === setId);
+  if (!set) return;
+  const fresh = soundIds.filter((id) => !set.soundIds.includes(id));
+  if (fresh.length === 0) return;
+  assertOneshotMembers(fresh);
+  await patchSet(setId, (s) => ({ ...s, soundIds: [...s.soundIds, ...fresh] }));
+}
+
+async function dissolveSet(setId: string, survivorId: string): Promise<void> {
+  for (const scene of get(scenes)) {
+    if (!scene.pads.some((p) => p.soundId === setId)) continue;
+    await patchScene(scene.id, (s) => ({
+      ...s,
+      pads: s.pads.map((p) => (p.soundId === setId ? { ...p, soundId: survivorId } : p)),
+    }));
+  }
+  sets.update((list) => list.filter((s) => s.id !== setId));
+  await db.deleteSet(setId);
+}
+
+export async function removeFromSet(setId: string, soundId: string): Promise<void> {
+  const set = get(sets).find((s) => s.id === setId);
+  if (!set) return;
+  const remaining = set.soundIds.filter((id) => id !== soundId);
+  if (remaining.length === set.soundIds.length) return;
+  if (remaining.length === 1) {
+    await dissolveSet(setId, remaining[0]);
+    return;
+  }
+  await patchSet(setId, (s) => ({ ...s, soundIds: remaining }));
+}
+
+export async function deleteSet(id: string): Promise<void> {
+  engine.stopSound(id, 0.1);
+  sets.update((list) => list.filter((s) => s.id !== id));
+  await db.deleteSet(id);
   for (const scene of get(scenes)) {
     if (scene.pads.some((p) => p.soundId === id)) await removePad(scene.id, id);
   }

@@ -7,29 +7,41 @@ import {
   activateScene,
   activeScene,
   addPad,
+  addToSet,
   brokenSounds,
   createScene,
+  createSet,
   deleteScene,
+  deleteSet,
   importFiles,
   init,
   moveScene,
   movePad,
   removePad,
+  removeFromSet,
   removeSound,
+  resolveRef,
   scenes,
   setActiveScene,
   setLanguage,
   setMasterVolume,
   settings,
+  sets,
   sounds,
   triggerSound,
   updatePad,
   updateScene,
+  updateSet,
 } from '../src/lib/stores';
-import { DEFAULT_SETTINGS, type Sound } from '../src/lib/types';
+import { DEFAULT_SETTINGS, type Settings, type Sound } from '../src/lib/types';
 
 const loopDecoder = async () => ({ duration: 120 });
 const shotDecoder = async () => ({ duration: 2 });
+
+async function twoOneshots(): Promise<[string, string]> {
+  const { added } = await importFiles([file('a.mp3'), file('b.mp3')], shotDecoder);
+  return [added[0].id, added[1].id];
+}
 
 function file(name: string): File {
   return new File([new Uint8Array([1, 2, 3, 4])], name, { type: 'audio/mpeg' });
@@ -41,6 +53,7 @@ beforeEach(async () => {
   scenes.set([]);
   settings.set({ ...DEFAULT_SETTINGS });
   brokenSounds.set(new Set());
+  sets.set([]);
 });
 
 describe('init', () => {
@@ -317,5 +330,87 @@ describe('settings', () => {
     await setMasterVolume(0.5);
     expect(get(settings).masterVolume).toBe(0.5);
     expect((await db.loadSettings())?.masterVolume).toBe(0.5);
+  });
+});
+
+describe('variation sets', () => {
+  it('createSet stores the set and resolveRef finds it', async () => {
+    await init();
+    const [a, b] = await twoOneshots();
+    const set = await createSet([a, b], { name: 'Hits', emoji: '🎲', defaultVolume: 0.7 });
+    expect(get(sets)).toHaveLength(1);
+    expect(await db.getAllSets()).toEqual([set]);
+    expect(resolveRef(set.id)).toEqual({ kind: 'set', set });
+    expect(resolveRef(a)?.kind).toBe('sound');
+    expect(resolveRef('nope')).toBeNull();
+  });
+
+  it('createSet rejects loops and too-few members', async () => {
+    await init();
+    const { added } = await importFiles([file('amb.mp3')], loopDecoder);
+    const [a] = await twoOneshots();
+    await expect(createSet([a, added[0].id], { name: 'x', emoji: '🎲', defaultVolume: 1 })).rejects.toThrow(
+      'loopInSet',
+    );
+    await expect(createSet([a], { name: 'x', emoji: '🎲', defaultVolume: 1 })).rejects.toThrow(
+      'tooFewMembers',
+    );
+  });
+
+  it('addToSet dedupes and validates', async () => {
+    await init();
+    const [a, b] = await twoOneshots();
+    const set = await createSet([a, b], { name: 'Hits', emoji: '🎲', defaultVolume: 0.7 });
+    const { added } = await importFiles([file('c.mp3')], shotDecoder);
+    await addToSet(set.id, [added[0].id, b]); // b already a member
+    expect(get(sets)[0].soundIds).toEqual([a, b, added[0].id]);
+  });
+
+  it('removeFromSet dissolves at one member and rewrites pads', async () => {
+    await init();
+    const sceneId = get(scenes)[0].id;
+    const [a, b] = await twoOneshots();
+    const set = await createSet([a, b], { name: 'Hits', emoji: '🎲', defaultVolume: 0.7 });
+    await addPad(sceneId, set.id);
+    await removeFromSet(set.id, a);
+    expect(get(sets)).toEqual([]); // dissolved
+    const padIds = get(activeScene)!.pads.map((p) => p.soundId);
+    expect(padIds).toContain(b); // pad rewritten to the survivor
+    expect(padIds).not.toContain(set.id);
+    expect(await db.getAllSets()).toEqual([]);
+  });
+
+  it('deleteSet removes pads referencing it but keeps member sounds', async () => {
+    await init();
+    const sceneId = get(scenes)[0].id;
+    const [a, b] = await twoOneshots();
+    const set = await createSet([a, b], { name: 'Hits', emoji: '🎲', defaultVolume: 0.7 });
+    await addPad(sceneId, set.id);
+    await deleteSet(set.id);
+    expect(get(sets)).toEqual([]);
+    expect(get(activeScene)!.pads.map((p) => p.soundId)).not.toContain(set.id);
+    expect(get(sounds).map((s) => s.id)).toEqual(expect.arrayContaining([a, b]));
+  });
+
+  it('removeSound cascades into sets with dissolution', async () => {
+    await init();
+    const [a, b] = await twoOneshots();
+    const set = await createSet([a, b], { name: 'Hits', emoji: '🎲', defaultVolume: 0.7 });
+    await removeSound(a);
+    expect(get(sets)).toEqual([]); // dropped to 1 member → dissolved
+    expect(resolveRef(set.id)).toBeNull();
+  });
+
+  it('init loads sets and merges fade defaults into legacy settings', async () => {
+    await init();
+    const [a, b] = await twoOneshots();
+    await createSet([a, b], { name: 'Hits', emoji: '🎲', defaultVolume: 0.7 });
+    // simulate a v1 settings record without fades
+    const legacy = { language: 'de', masterVolume: 0.5, activeSceneId: null } as unknown as Settings;
+    await db.saveSettings(legacy);
+    await init();
+    expect(get(sets)).toHaveLength(1);
+    expect(get(settings).fades).toEqual({ stop: 0.3, stopAll: 1.5, crossfade: 1.5 });
+    expect(get(settings).masterVolume).toBe(0.5);
   });
 });
