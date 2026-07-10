@@ -16,6 +16,7 @@
     activateScene,
     activeScene,
     editingSound,
+    editMode,
     importFiles,
     init,
     libraryOpen,
@@ -138,7 +139,7 @@
     <main><Stage /></main>
     <MixerDock />
   </div>
-  {#if dragDepth > 0}
+  {#if dragDepth > 0 && !$editMode}
     <DropOverlay />
   {/if}
   <LibraryModal />

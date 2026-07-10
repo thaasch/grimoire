@@ -392,6 +392,55 @@ describe('variation sets', () => {
     expect(await db.getAllSets()).toEqual([]);
   });
 
+  it('dissolution removes the set pad when the survivor already has a pad in the scene', async () => {
+    await init();
+    const sceneId = get(scenes)[0].id;
+    // twoOneshots() imports via importFiles, which auto-adds a pad per sound to the
+    // active scene — drop the 'a' pad so the scene starts with only the 'b' pad.
+    const [a, b] = await twoOneshots();
+    await removePad(sceneId, a);
+    const set = await createSet([a, b], { name: 'Hits', emoji: '🎲', defaultVolume: 0.7 });
+    await addPad(sceneId, set.id);
+    await removeFromSet(set.id, a);
+    expect(get(sets)).toEqual([]); // dissolved
+    const pads = get(activeScene)!.pads;
+    expect(pads).toHaveLength(1); // no duplicate pad for b
+    expect(pads[0]).toEqual({ soundId: b, position: 0 }); // contiguous position
+  });
+
+  it('dissolution rewrites pads in non-active scenes', async () => {
+    await init();
+    const scene1 = get(scenes)[0];
+    // twoOneshots() auto-adds pads for both sounds to the (currently active) scene1 —
+    // strip them so scene1 starts with only the set's pad.
+    const [a, b] = await twoOneshots();
+    await removePad(scene1.id, a);
+    await removePad(scene1.id, b);
+    const set = await createSet([a, b], { name: 'Hits', emoji: '🎲', defaultVolume: 0.7 });
+    await addPad(scene1.id, set.id);
+    await createScene('Two'); // activates scene 2 — scene1 is now non-active
+    expect(get(settings).activeSceneId).not.toBe(scene1.id);
+    await removeFromSet(set.id, a);
+    expect(get(sets)).toEqual([]); // dissolved
+    const updatedScene1 = get(scenes).find((s) => s.id === scene1.id)!;
+    expect(updatedScene1.pads).toEqual([{ soundId: b, position: 0 }]); // rewritten though not active
+  });
+
+  it('removeSound cascade that dissolves also cleans playback state', async () => {
+    await init();
+    const [a, b] = await twoOneshots();
+    const set = await createSet([a, b], { name: 'Hits', emoji: '🎲', defaultVolume: 0.7 });
+    engine.setBuffer(a, FAKE_BUFFER);
+    engine.setBuffer(b, FAKE_BUFFER);
+    _setRngForTests(() => 0); // always take the first candidate
+    await triggerRef(set.id);
+    expect(_lastPick(set.id)).toBe(a);
+    await removeSound(a);
+    expect(_lastPick(set.id)).toBeUndefined(); // lastPick cleared on dissolve
+    const lingering = get(engine.playing).filter((i) => i.soundId === set.id && !i.stopping);
+    expect(lingering).toEqual([]); // no un-stopping instance left registered under the dissolved set's id
+  });
+
   it('deleteSet removes pads referencing it but keeps member sounds', async () => {
     await init();
     const sceneId = get(scenes)[0].id;

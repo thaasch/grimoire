@@ -62,7 +62,15 @@
   }
 
   function onCellDragover(e: DragEvent, i: number) {
-    if (dragIndex === null || dragIndex === i) return;
+    if (dragIndex === null) {
+      if ($editMode && e.dataTransfer?.types.includes('Files')) {
+        e.preventDefault();
+        overIndex = i;
+        overZone = 'merge';
+      }
+      return;
+    }
+    if (dragIndex === i) return;
     e.preventDefault();
     overIndex = i;
     overZone = zoneFor(e, e.currentTarget as HTMLElement);
@@ -80,6 +88,8 @@
       for (const f of result.failed) {
         toast(f.reason === 'quota' ? 'toast.quota' : 'toast.unsupported', { name: f.name }, 'error');
       }
+      overIndex = null;
+      overZone = null;
       return;
     }
     if (dragIndex === null) return; // plain file drop outside edit mode → bubbles to the window handler
@@ -107,7 +117,7 @@
       {#each pads as pad, i (pad.soundId)}
         <div
           class="cell"
-          class:merge-target={overIndex === i && overZone === 'merge' && dragIndex !== null && dragIndex !== i}
+          class:merge-target={overIndex === i && overZone === 'merge'}
           class:before-target={overIndex === i && overZone === 'before' && dragIndex !== null}
           class:after-target={overIndex === i && overZone === 'after' && dragIndex !== null}
           role="presentation"

@@ -14,7 +14,6 @@
     sets,
     sounds,
     triggerRef,
-    triggerSound,
   } from '../lib/stores';
   import { toast } from '../lib/toasts';
   import type { PadColor } from '../lib/types';

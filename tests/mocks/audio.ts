@@ -54,6 +54,7 @@ export class MockAudioContext {
   destination = new MockNode();
   gains: MockGain[] = [];
   sources: MockSource[] = [];
+  decodeReceived: ArrayBuffer[] = [];
 
   async resume() {
     this.state = 'running';
@@ -72,6 +73,7 @@ export class MockAudioContext {
   }
 
   async decodeAudioData(data: ArrayBuffer) {
+    this.decodeReceived.push(data);
     return { duration: 42, length: data.byteLength } as unknown as AudioBuffer;
   }
 }

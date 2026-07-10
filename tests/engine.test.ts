@@ -196,11 +196,13 @@ describe('engine volumes and queries', () => {
 
 describe('engine coverage gaps (v1 review)', () => {
   it('decode hands decodeAudioData a copy and returns its buffer', async () => {
-    const { engine } = setup();
+    const { ctx, engine } = setup();
     const data = new Uint8Array([1, 2, 3]).buffer;
     const buffer = await engine.decode(data);
     expect((buffer as unknown as { length: number }).length).toBe(3);
     expect(data.byteLength).toBe(3); // original must not be detached — a copy was decoded
+    expect(ctx.decodeReceived[0]).not.toBe(data); // decodeAudioData received a distinct copy, not the original reference
+    expect(ctx.decodeReceived[0].byteLength).toBe(data.byteLength);
   });
 
   it('hasBuffer reflects setBuffer', () => {

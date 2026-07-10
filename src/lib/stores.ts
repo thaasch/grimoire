@@ -2,7 +2,7 @@ import { derived, get, writable } from 'svelte/store';
 import * as db from './db';
 import { engine } from './engine';
 import { detectLang, lang, t, type Lang } from './i18n';
-import { debouncedPersist, guard } from './persist';
+import { debouncedPersist, flushPersist, guard } from './persist';
 import { DEFAULT_FADES, DEFAULT_SETTINGS, type FadeSettings, type Pad, type PadColor, type Scene, type Settings, type Sound, type VariationSet } from './types';
 
 export const sounds = writable<Sound[]>([]);
@@ -46,6 +46,7 @@ function defaultSceneName(language: Lang): string {
 }
 
 export async function init(): Promise<void> {
+  await flushPersist();
   const [allSounds, allScenes, allSets, stored] = await Promise.all([
     db.getAllSounds(),
     db.getAllScenes(),
@@ -247,6 +248,7 @@ export async function duplicateScene(id: string): Promise<Scene | null> {
   const renumbered = ordered.map((s, i) => ({ ...s, position: i }));
   scenes.set(renumbered);
   for (const scene of renumbered) await guard(db.saveScene(scene));
+  // deliberate: plain activation without crossfade — the copy starts silent and usually duplicates the already-active scene
   await setActiveScene(copy.id);
   return copy;
 }
@@ -380,12 +382,20 @@ export async function addToSet(setId: string, soundIds: string[]): Promise<void>
 }
 
 async function dissolveSet(setId: string, survivorId: string): Promise<void> {
+  engine.stopSound(setId, get(settings).fades.stop);
+  lastPick.delete(setId);
   for (const scene of get(scenes)) {
     if (!scene.pads.some((p) => p.soundId === setId)) continue;
-    await patchScene(scene.id, (s) => ({
-      ...s,
-      pads: s.pads.map((p) => (p.soundId === setId ? { ...p, soundId: survivorId } : p)),
-    }));
+    await patchScene(scene.id, (s) => {
+      const survivorExists = s.pads.some((p) => p.soundId === survivorId);
+      const pads = survivorExists
+        ? s.pads
+            .filter((p) => p.soundId !== setId)
+            .sort((a, b) => a.position - b.position)
+            .map((p, i) => ({ ...p, position: i }))
+        : s.pads.map((p) => (p.soundId === setId ? { ...p, soundId: survivorId } : p));
+      return { ...s, pads };
+    });
   }
   sets.update((list) => list.filter((s) => s.id !== setId));
   await guard(db.deleteSet(setId));
@@ -405,6 +415,7 @@ export async function removeFromSet(setId: string, soundId: string): Promise<voi
 
 export async function deleteSet(id: string): Promise<void> {
   engine.stopSound(id, 0.1);
+  lastPick.delete(id);
   sets.update((list) => list.filter((s) => s.id !== id));
   await guard(db.deleteSet(id));
   for (const scene of get(scenes)) {
@@ -526,7 +537,7 @@ async function playFromSet(set: VariationSet, volume?: number): Promise<void> {
   const candidates = members.length > 1 ? members.filter((m) => m.id !== previous) : [...members];
   const queue = [...candidates];
   while (queue.length > 0) {
-    const index = Math.floor(rng() * queue.length);
+    const index = Math.min(Math.floor(rng() * queue.length), queue.length - 1);
     const [member] = queue.splice(index, 1);
     if (await ensureBuffer(member)) {
       lastPick.set(set.id, member.id);
