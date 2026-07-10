@@ -1,0 +1,55 @@
+:root {
+  --bg: #0d0a12;
+  --panel: #161020;
+  --panel-border: rgba(232, 200, 126, 0.2);
+  --gold: #e8c87e;
+  --gold-dim: rgba(232, 200, 126, 0.25);
+  --gold-faint: rgba(232, 200, 126, 0.06);
+  --ember: #ff6b35;
+  --ember-glow: rgba(255, 107, 53, 0.4);
+  --text: #d8cde8;
+  --muted: #8a7a9a;
+  --danger: #e89a9a;
+  --danger-border: rgba(220, 80, 80, 0.5);
+  --danger-bg: rgba(180, 40, 40, 0.2);
+  --font-display: Georgia, 'Times New Roman', serif;
+  --font-ui: system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-display);
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+input,
+select {
+  font: inherit;
+}
+
+input[type='range'] {
+  accent-color: var(--gold);
+}
